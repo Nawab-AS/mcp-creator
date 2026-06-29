@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "mcp-creator",
+  "outputfilename": "mcp-creator",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Nawab-AS",
+    "email": "59747708+Nawab-AS@users.noreply.github.com"
+  }
+}
