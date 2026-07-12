@@ -1,9 +1,12 @@
 <script lang="ts" setup>
 import { ref } from "vue";
 import Initials from "./components/Initials.vue";
-// TODO: implement better UI
+import Home from "./components/pseudo-pages/Home.vue";
+import Projects from "./components/pseudo-pages/Projects.vue";
+import Models from "./components/pseudo-pages/Models.vue";
+import Prebuilt from "./components/pseudo-pages/Prebuilt.vue";
 
-const pages = ["home", "projects", "settings"]
+const pages = {"home": Home, "projects": Projects, "models": Models, "prebuilt": Prebuilt}
 
 const name = ref("Hamid Syed")
 const page = ref("home")
@@ -18,13 +21,16 @@ const page = ref("home")
       </div>
       <hr>
       <ul id="menu">
-        <li v-for="item in pages" :key="item" @click="page = item" :class="{ active: page === item }">
-          <p>{{ item.charAt(0).toUpperCase() + item.slice(1) }}</p>
+        <li v-for="(component, itemName) in pages" :key="itemName" @click="page = itemName" :class="{ active: page === itemName }">
+          <p>{{ itemName.charAt(0).toUpperCase() + itemName.slice(1) }}</p>
         </li>
       </ul>
     </div>
     <div id="content">
-      <h1>{{ page.charAt(0).toUpperCase() + page.slice(1) }}</h1>
+      <Home v-if="page === 'home'" />
+      <Projects v-if="page === 'projects'" />
+      <Models v-if="page === 'models'" />
+      <Prebuilt v-if="page === 'prebuilt'" />
     </div>
   </div>
 </template>
@@ -100,6 +106,10 @@ hr {
 #content {
   flex: 1;
   padding: 10px;
+}
+#content>div {
+  height: 100%;
+  overflow: auto;
 }
 
 </style>

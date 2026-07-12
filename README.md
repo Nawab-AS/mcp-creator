@@ -1,11 +1,6 @@
-# README
+# MCP creator
+An seamless app to create and host custom semantic search MCP server.
 
-## About
-
-This is the official Wails Vue-TS template.
-
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
 
 ## Live Development
 
