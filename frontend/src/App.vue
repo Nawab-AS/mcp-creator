@@ -44,6 +44,8 @@ const page = ref("home")
 #sidebar {
   height: 100vh;
   width: 200px;
+  min-width: 200px;
+  
   background-color: #242424;
   color: white;
 }
@@ -105,11 +107,12 @@ hr {
 
 #content {
   flex: 1;
-  padding: 10px;
+  padding: 0px;
 }
 #content>div {
   height: 100%;
   overflow: auto;
+  background-color: #1c1c1c;
 }
 
 </style>

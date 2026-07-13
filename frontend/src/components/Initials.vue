@@ -10,18 +10,14 @@ const color = computed(() => {
   const charCodeSum = props.Initials
     .split('')
     .reduce((sum: number, char: string) => sum + char.charCodeAt(0)*100, 0)
-  const hue = charCodeSum % 360
-  return `hsl(${hue}, 70%, 50%)`
+  return charCodeSum % 360
 })
 
 </script>
 
 <template>
   <main>
-    <div
-      class="initials"
-      :style="{ backgroundColor: color }"
-    >
+    <div class="initials">
       <p>{{ Initials?.toUpperCase() }}</p>
     </div>
   </main>
@@ -32,6 +28,7 @@ const color = computed(() => {
 .initials {
   width: 30px;
   height: 30px;
+  background-color: v-bind('"hsl(" + color + ", 100%, 50%)"');
   border-radius: 50%;
   display: flex;
   align-items: center;

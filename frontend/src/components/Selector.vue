@@ -3,7 +3,7 @@
 import { reactive, onMounted } from 'vue'
 
 
-// consts
+// consts (TODO: move to props)
 const leftIndent = 20;
 const barWidth = 100;
 const speed = 5;
