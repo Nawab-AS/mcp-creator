@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
+import Sections from '../Selector.vue'
 
 const model = reactive([
     { name: 'slow', description: 'Fast on older hardware and simple datasets.' },
@@ -7,6 +8,8 @@ const model = reactive([
     { name: 'accurate', description: 'Good on powerful hardware and complex datasets.' },
     { name: 'fast', description: 'Fast on modern hardware and simple datasets.' }
 ])
+
+const activeSection = ref('Installed')
 </script>
 
 <template>
@@ -18,6 +21,8 @@ const model = reactive([
                 <button>Install</button>
             </span>
         </div>
+        <Sections :options="['Installed', 'Available']" v-model="activeSection"/>
+        <h1>{{ activeSection }}</h1>
         <div id="model-list">
             <div v-for="m in model" :key="m.name" class="model-card">
                 <h3>{{ m.name }}</h3>
@@ -32,7 +37,7 @@ const model = reactive([
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 10px 0;
+    margin: 10px 10px;
 }
 
 #header>h1 {
@@ -65,6 +70,7 @@ const model = reactive([
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 10px;
+    padding: 10px;
 }
 
 .model-card {
