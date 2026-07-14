@@ -9,3 +9,7 @@ export function DownloadModel(arg1) {
 export function GetModels() {
   return window['go']['main']['App']['GetModels']();
 }
+
+export function Startup(arg1) {
+  return window['go']['main']['App']['Startup'](arg1);
+}

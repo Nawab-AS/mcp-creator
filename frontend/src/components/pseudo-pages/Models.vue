@@ -4,14 +4,13 @@ import Sections from '../Selector.vue'
 
 // backend imports
 import { GetModels, DownloadModel } from '../../../wailsjs/go/main/App'
-import type { main } from '../../../wailsjs/go/models'
+import type { backend } from '../../../wailsjs/go/models'
 
 
 // fetch models list
-const models = ref<main.Model[]>([])
+const models = ref<backend.Model[]>([])
 onMounted(async () => {
     models.value = await GetModels()
-    selectedModel.value = models.value[0]?.name ?? ''
 })
 
 
@@ -23,14 +22,20 @@ const visibleModels = computed(() => models.value.filter((item) =>
 watch(filter, (_) => { selectedModel.value = '' })
 
 
-function selectModel(name: string) { selectedModel.value = name }
+function selectModel(name: string) {
+    if (selectedModel.value === name) {
+        selectedModel.value = ''
+        return
+    }
+    selectedModel.value = name
+}
 async function modifyModel() {
     await DownloadModel(selectedModel.value)
 }
 </script>
 
 <template>
-    <div id="models">
+    <div id="models" @click="selectedModel=''">
         <div id="header">
             <h1>Models</h1>
             <span>
@@ -49,7 +54,7 @@ async function modifyModel() {
                 :key="m.name"
                 class="model-card"
                 :class="{ selected: selectedModel === m.name }"
-                @click="selectModel(m.name)"
+                @click.stop="selectModel(m.name)"
             >
                 <h3>{{ m.name }}</h3>
                 <p>{{ m.description }}</p>

@@ -21,7 +21,7 @@ const page = ref("home")
       </div>
       <hr>
       <ul id="menu">
-        <li v-for="(component, itemName) in pages" :key="itemName" @click="page = itemName" :class="{ active: page === itemName }">
+        <li v-for="(_, itemName) in pages" :key="itemName" @click="page = itemName" :class="{ active: page === itemName }">
           <p>{{ itemName.charAt(0).toUpperCase() + itemName.slice(1) }}</p>
         </li>
       </ul>
