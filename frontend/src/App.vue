@@ -107,11 +107,15 @@ hr {
 
 #content {
   flex: 1;
+  min-width: 0;
   padding: 0px;
 }
 #content>div {
+  min-width: 0;
   height: 100%;
   overflow: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
   background-color: #1c1c1c;
 }
 

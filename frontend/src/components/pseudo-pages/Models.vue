@@ -1,15 +1,32 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Sections from '../Selector.vue'
 
-const model = reactive([
-    { name: 'slow', description: 'Fast on older hardware and simple datasets.' },
-    { name: 'balanced', description: 'Good for modern hardware and balanced performance.' },
-    { name: 'accurate', description: 'Good on powerful hardware and complex datasets.' },
-    { name: 'fast', description: 'Fast on modern hardware and simple datasets.' }
-])
+// backend imports
+import { GetModels, DownloadModel } from '../../../wailsjs/go/main/App'
+import type { main } from '../../../wailsjs/go/models'
 
-const activeSection = ref('Installed')
+
+// fetch models list
+const models = ref<main.Model[]>([])
+onMounted(async () => {
+    models.value = await GetModels()
+    selectedModel.value = models.value[0]?.name ?? ''
+})
+
+
+const filter = ref('')
+const selectedModel = ref('')
+const visibleModels = computed(() => models.value.filter((item) => 
+    item.installed === (filter.value === 'Installed')
+))
+watch(filter, (_) => { selectedModel.value = '' })
+
+
+function selectModel(name: string) { selectedModel.value = name }
+async function modifyModel() {
+    await DownloadModel(selectedModel.value)
+}
 </script>
 
 <template>
@@ -18,13 +35,22 @@ const activeSection = ref('Installed')
             <h1>Models</h1>
             <span>
                 <button>Import</button>
-                <button>Install</button>
+                
+                <button @click="modifyModel" :disabled="!selectedModel" id="modify">
+                    <span v-if="filter == 'Installed'">Delete</span>
+                    <span v-else>Install</span>
+                </button>
             </span>
         </div>
-        <Sections :options="['Installed', 'Available']" v-model="activeSection"/>
-        <h1>{{ activeSection }}</h1>
+        <Sections :options="['Installed', 'Available']" v-model="filter"/>
         <div id="model-list">
-            <div v-for="m in model" :key="m.name" class="model-card">
+            <div
+                v-for="m in visibleModels"
+                :key="m.name"
+                class="model-card"
+                :class="{ selected: selectedModel === m.name }"
+                @click="selectModel(m.name)"
+            >
                 <h3>{{ m.name }}</h3>
                 <p>{{ m.description }}</p>
             </div>
@@ -54,21 +80,27 @@ const activeSection = ref('Installed')
     background-color: #454545;
     color: white;
     cursor: pointer;
-    transition: all 0.2s ease-in-out;
+    transition-duration: 0.5s;
 }
 
-#header button:last-child {
-    background-color: #004f94;
+#header button#modify {
+    background-color: v-bind('filter === "Installed" ? "#b71c1c" : "#004f94"');
 }
 
 #header button:hover {
     filter: brightness(1.1);
 }
 
+#status {
+    margin: 0 10px 8px;
+    color: #b7c6e9;
+    font-size: 0.95rem;
+}
+
 
 #model-list {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
     padding: 10px;
 }
@@ -78,7 +110,15 @@ const activeSection = ref('Installed')
     border-radius: 10px;
     padding: 10px;
     height: 150px;
-    width: 150px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+    cursor: pointer;
+}
+
+.model-card.selected {
+    border-color: #004f94;
+    background-color: rgba(0, 79, 148, 0.15);
 }
 
 .model-card h3 {
