@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import Sections from '../Selector.vue'
+import SideModal from '../sideModal.vue'
 
 // backend imports
 import { GetModels, DownloadModel } from '../../../wailsjs/go/main/App'
@@ -60,6 +61,10 @@ async function modifyModel() {
                 <p>{{ m.description }}</p>
             </div>
         </div>
+        <SideModal :open="!!selectedModel" @close="selectedModel = ''">
+            <h1>{{ selectedModel }}</h1>
+            <p>{{ models.find(m => m.name === selectedModel)?.description }}</p>
+        </SideModal>
     </div>
 </template>
 

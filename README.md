@@ -1,5 +1,5 @@
 # MCP creator
-An seamless app to create and host custom semantic search MCP server.
+A simple app to create and host custom semantic search MCP servers.
 
 
 ## Live Development

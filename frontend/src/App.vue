@@ -33,6 +33,10 @@ const page = ref("home")
       <Prebuilt v-if="page === 'prebuilt'" />
     </div>
   </div>
+
+  <div id="modals">
+    <!-- This div is accessed via `Teleport` -->
+  </div>
 </template>
 
 <style scoped>
