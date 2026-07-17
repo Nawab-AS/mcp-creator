@@ -43,6 +43,7 @@ const page = ref("home")
 #app {
   display: flex;
   min-height: 100vh;
+  color: #eee;
 }
 
 #sidebar {
@@ -51,7 +52,6 @@ const page = ref("home")
   min-width: 200px;
   
   background-color: #242424;
-  color: white;
   border-right: 1px solid #444;
 }
 

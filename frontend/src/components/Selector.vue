@@ -1,6 +1,6 @@
 <!-- /components/Selector.vue -->
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 
 
 // consts (TODO: move to props)
@@ -33,7 +33,7 @@ const emit = defineEmits<{
 
 
 // onclick animation
-const bar = reactive({
+const bar = ref({
   left: leftIndent,
   current_left: 0,
 })
@@ -43,9 +43,9 @@ function onClick(option: string, now: boolean = false) {
   // do other stuff...
   emit('update:modelValue', option)
   const index = props.options.indexOf(option)
-  bar.left = leftIndent + index * (barWidth + 32) + 1
+  bar.value.left = leftIndent + index * (barWidth + 32) + 1
   if (now) {
-    bar.current_left = bar.left
+    bar.value.current_left = bar.value.left
   }
 }
 
@@ -56,12 +56,12 @@ onMounted(() => {
 
 // move bar
 setInterval(() => {
-  if (Math.abs(bar.current_left - bar.left) <= speed) {
-    bar.current_left = bar.left
-  } else if (bar.current_left < bar.left) {
-    bar.current_left += speed
-  } else if (bar.current_left > bar.left) {
-    bar.current_left -= speed
+  if (Math.abs(bar.value.current_left - bar.value.left) <= speed) {
+    bar.value.current_left = bar.value.left
+  } else if (bar.value.current_left < bar.value.left) {
+    bar.value.current_left += speed
+  } else if (bar.value.current_left > bar.value.left) {
+    bar.value.current_left -= speed
   }
 }, 10)
 

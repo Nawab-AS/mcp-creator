@@ -59,7 +59,7 @@ const emit = defineEmits<{
 
 
 .slide-enter-active {
-  transition: all 0.3s ease-out;
+  transition: all 0.2s ease-out;
   transition-delay: 0.1s;
 }
 

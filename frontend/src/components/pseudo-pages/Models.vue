@@ -72,7 +72,7 @@ async function modifyModel() {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 10px 10px;
+    margin: 20px 15px;
 }
 
 #header>h1 {
