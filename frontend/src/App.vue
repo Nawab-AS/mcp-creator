@@ -52,6 +52,7 @@ const page = ref("home")
   
   background-color: #242424;
   color: white;
+  border-right: 1px solid #444;
 }
 
 #greeting {

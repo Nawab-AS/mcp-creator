@@ -3,8 +3,6 @@ package backend
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 )
 
 type Models struct{ ctx context.Context }
@@ -14,11 +12,6 @@ func (a *Models) Startup(ctx context.Context) { a.ctx = ctx }
 // TODO: make this actually download a model
 func (a *Models) DownloadModel(modelName string) string {
 	fmt.Println("Downloading model:", modelName)
-
-	dir, _ := os.UserConfigDir()
-	filePath := filepath.Join(dir, "mcp-creator", "tasks.json")
-
-	fmt.Println("Current OS data path is", filePath)
 	return "Downloaded model: " + modelName
 }
 

@@ -17,8 +17,7 @@ const emit = defineEmits<{
         </Transition>
         <Transition name="slide" appear>
             <div v-if="props.open" id="side-modal" @click.stop>
-                <h1>Side Modal</h1>
-                <slot>Empty content</slot>
+                <slot>No slot content</slot>
             </div>
         </Transition>
     </Teleport>
