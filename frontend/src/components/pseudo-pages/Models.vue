@@ -60,10 +60,6 @@ async function modifyModel() {
                 <p>{{ m.description }}</p>
             </div>
         </div>
-        <!-- <SideModal :open="!!selectedModel" @close="selectedModel = ''">
-            <h1>{{ selectedModel }}</h1>
-            <p>{{ models.find(m => m.name === selectedModel)?.description }}</p>
-        </SideModal> -->
     </div>
 </template>
 

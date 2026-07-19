@@ -8,13 +8,15 @@ import (
 // App struct
 type App struct {
 	ctx context.Context
+	*backend.Projects
 	*backend.Models
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		Models: &backend.Models{},
+		Projects: &backend.Projects{},
+		Models:   &backend.Models{},
 	}
 }
 
@@ -23,5 +25,6 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
+	a.Projects.Startup(ctx)
 	a.Models.Startup(ctx)
 }

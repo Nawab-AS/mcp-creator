@@ -1,13 +1,49 @@
 {
-  "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "mcp-creator",
-  "outputfilename": "mcp-creator",
-  "frontend:install": "npm install",
   "frontend:build": "npm run build",
+  "frontend:install": "npm install",
+  "frontend:dev": "",
+  "frontend:dev:build": "",
+  "frontend:dev:install": "",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
-  "author": {
+  "wailsjsdir": "/Users/syeds/Documents/code/mcp-creator/frontend",
+  "version": "2",
+  "projectdir": "/Users/syeds/Documents/code/mcp-creator",
+  "build:dir": "build",
+  "build:tags": "",
+  "outputfilename": "mcp-creator",
+  "OutputType": "",
+  "Platform": "",
+  "runNonNativeBuildHooks": false,
+  "postBuildHooks": null,
+  "preBuildHooks": null,
+  "Author": {
     "name": "Nawab-AS",
     "email": "59747708+Nawab-AS@users.noreply.github.com"
+  },
+  "Info": {
+    "companyName": "mcp-creator",
+    "productName": "mcp-creator",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright.........",
+    "comments": "Built using Wails (https://wails.io)",
+    "fileAssociations": null,
+    "protocols": null
+  },
+  "debounceMS": 100,
+  "devServer": "0.0.0.0:34115",
+  "appargs": "",
+  "nsisType": "multiple",
+  "obfuscated": false,
+  "garbleargs": "",
+  "frontend:dir": "frontend",
+  "viteServerTimeout": 10,
+  "bindings": {
+    "ts_generation": {
+      "prefix": "",
+      "suffix": "",
+      "outputType": ""
+    }
   }
 }

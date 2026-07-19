@@ -1,21 +1,98 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, toRaw } from 'vue'
 import SideModal from '../sideModal.vue'
 
-// each project contains: star, name, path, last modified, model used
-const projects = ref([
-    {star: false, name: 'Project 1', path: '/path/to/project1', lastModified: '3 days ago', modelUsed: 'slow'},
-    {star: true, name: 'Project 2', path: '/path/to/project2', lastModified: 'Less than a minute ago', modelUsed: 'fast'},
-])
+import { GetProjects, ModifyProject } from '../../../wailsjs/go/main/App'
+import type { backend } from '../../../wailsjs/go/models'
+
+const projects = ref<backend.Project[]>([])
+
+onMounted(async () => await refreshProjects(false))
+
+async function refreshProjects(soft=true) {
+    projects.value = await GetProjects()
+    if (soft) return
+    projects.value.sort((a, b) => {
+        if (a.star && !b.star) return -1
+        if (!a.star && b.star) return 1
+        return a.name.localeCompare(b.name)
+    })
+}
+
+function friendlyDate(dateString: string) {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+    if (diffInSeconds < 60) {
+        return `Less than a minute ago`
+    } else if (diffInSeconds < 60*60) {
+        return `${Math.floor(diffInSeconds / 60)} minutes ago`
+    } else if (diffInSeconds < 60*60*24) {
+        return `${Math.floor(diffInSeconds / 3600)} hours ago`
+    } else if (diffInSeconds < 60*60*24*7) {
+        return `${Math.floor(diffInSeconds / 86400)} days ago`
+    } else if (diffInSeconds < 60*60*24*7*4) {
+        return `${Math.floor(diffInSeconds / 604800)} weeks ago`
+    } else if (diffInSeconds < 60*60*24*7*4*12) {
+        return `${Math.floor(diffInSeconds / 2592000)} months ago`
+    } else {
+        return date.toLocaleDateString()
+    }
+}
 
 const settingsModal = ref({
     open: false,
-    projectName: ''
+    initialName: '',
+    project: null as backend.Project | null,
 })
 
+async function toggleStar(projectName: string) {
+    const project = projects.value.find(p => p.name === projectName)
+    if (!project) return
+    if (project) {
+        project.star = !project.star
+    }
+    await ModifyProject(projectName, 'star', project.star)
+}
+
 function openOptions(projectName: string) {
-    settingsModal.value.projectName = projectName
-    settingsModal.value.open = true
+    const project = projects.value.find(p => p.name === projectName)
+    if (!project) return
+
+    settingsModal.value = {
+        open: true,
+        initialName: project.name,
+        project: structuredClone(toRaw(project)) as backend.Project, // deep copy
+    }
+}
+
+async function updateModifiedProjects() {
+    let project = projects.value.find(p => p.name === settingsModal.value.initialName)
+
+    if (!project || !settingsModal.value.project) { // unlikely but just in case
+        settingsModal.value = { open: false, initialName: '', project: null }
+        return
+    }
+
+
+    const updatedProject = settingsModal.value.project
+    updatedProject.name = updatedProject.name.trim()
+
+    // if the name changed, update first to avoid conflicts
+    if (project.name !== updatedProject.name) {
+        await ModifyProject(project.name, 'name', updatedProject.name)
+        project.name = updatedProject.name
+    }
+
+    const keys = Object.keys(updatedProject) as (keyof backend.Project)[]
+    for (const key of keys) {
+        if (project[key] !== updatedProject[key]) {
+            await ModifyProject(project.name, key, updatedProject[key])
+        }
+    }
+    settingsModal.value = { open: false, initialName: '', project: null }
+    await refreshProjects(false)
 }
 
 </script>
@@ -52,15 +129,14 @@ function openOptions(projectName: string) {
             <tbody>
                 <tr v-for="project in projects" :key="project.name">
                     <td class="padding"></td>
-                    <td>
+                    <td @click="toggleStar(project.name)">
                         <img src="../../assets/images/star.svg" alt="starred" 
-                            :class="{ 'unstarred': !project.star, 'star': true }"
-                            @click="project.star = !project.star">
+                            :class="{ 'unstarred': !project.star, 'star': true }">
                     </td>
                     <td class="project-name">
                         {{ project.name }} <br/> <code>{{ project.path }}</code>
                     </td>
-                    <td>{{ project.lastModified }}</td> <!-- TODO: show friendly dates -->
+                    <td>{{ friendlyDate(project.lastModified) }}</td>
                     <td>{{ project.modelUsed }}</td>
                     <td @click="openOptions(project.name)">
                         <img src="../../assets/images/options.svg" alt="options" class="options">
@@ -70,10 +146,19 @@ function openOptions(projectName: string) {
         </table>
 
         <!-- settings modal -->
-        <SideModal :open="settingsModal.open" @close="settingsModal.open = false">
-            <h2>Settings for {{ settingsModal.projectName }}</h2>
-            <p>Here you can configure settings for the project.</p>
-
+        <SideModal :open="settingsModal.open" @close="updateModifiedProjects()">
+            <h2>Settings</h2>
+            <br />
+            <div v-if="settingsModal.project">
+                <label for="project-name">Project Name:</label>
+                <input type="text" id="project-name" v-model="settingsModal.project.name" />
+                <br /><br />
+                <label for="project-path">Project Path:</label>
+                <input type="text" id="project-path" v-model="settingsModal.project.path" />
+                <br /><br />
+                <label for="project-model">Model Used:</label>
+                <input type="text" id="project-model" v-model="settingsModal.project.modelUsed" />
+            </div>
         </SideModal>
     </div>
 </template>
@@ -86,7 +171,7 @@ function openOptions(projectName: string) {
     margin: 20px 15px;
 }
 
-#header>h1 {
+#header>h1, h2 {
     font-size: 2rem;
     margin: 0;
 }
@@ -145,20 +230,23 @@ tbody tr:hover {
 }
 
 
-.star {
+.star, .options {
     transition-duration: 0.2s;
+}
+
+.star {
     scale: 0.8;
 }
 
-td>img.star.unstarred {
+.star.unstarred, .options {
     opacity: 0;
 }
 
-td>img.star:hover {
+td:hover>img.star {
     opacity: 0.9;
 }
 
-td>img.star.unstarred:hover {
+td:hover>img.star.unstarred, tr:hover>td>img.options {
     opacity: 0.4;
 }
 
@@ -171,6 +259,5 @@ td.project-name code {
     font-size: 0.8rem;
     color: #888;
 }
-
 
 </style>
