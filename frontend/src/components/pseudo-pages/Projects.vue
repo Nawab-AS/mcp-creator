@@ -2,7 +2,7 @@
 import { ref, onMounted, toRaw } from 'vue'
 import SideModal from '../sideModal.vue'
 
-import { GetProjects, ModifyProject } from '../../../wailsjs/go/main/App'
+import { GetProjects, ModifyProject, CreateProject } from '../../../wailsjs/go/main/App'
 import type { backend } from '../../../wailsjs/go/models'
 
 const projects = ref<backend.Project[]>([])
@@ -44,6 +44,7 @@ function friendlyDate(dateString: string) {
 const settingsModal = ref({
     open: false,
     initialName: '',
+    type: 'Modify' as 'Modify' | 'Create',
     project: null as backend.Project | null,
 })
 
@@ -63,15 +64,20 @@ function openOptions(projectName: string) {
     settingsModal.value = {
         open: true,
         initialName: project.name,
+        type: 'Modify',
         project: structuredClone(toRaw(project)) as backend.Project, // deep copy
     }
 }
 
-async function updateModifiedProjects() {
+async function updateModifiedProjects(cancelled: boolean = false) {
+    if (cancelled) {
+        settingsModal.value = { open: false, initialName: '', type: 'Modify', project: null }
+        return
+    }
     let project = projects.value.find(p => p.name === settingsModal.value.initialName)
 
     if (!project || !settingsModal.value.project) { // unlikely but just in case
-        settingsModal.value = { open: false, initialName: '', project: null }
+        settingsModal.value = { open: false, initialName: '', type: 'Modify', project: null }
         return
     }
 
@@ -91,8 +97,25 @@ async function updateModifiedProjects() {
             await ModifyProject(project.name, key, updatedProject[key])
         }
     }
-    settingsModal.value = { open: false, initialName: '', project: null }
+    settingsModal.value = { open: false, initialName: '', type: 'Modify', project: null }
     await refreshProjects(false)
+}
+
+function createProjectModal() {
+    let project: backend.Project = {
+        name: 'My New Project',
+        path: '',
+        star: false,
+        lastModified: new Date().toISOString(),
+        modelUsed: '',
+    }
+
+    settingsModal.value = {
+        open: true,
+        initialName: project.name,
+        type: 'Create',
+        project,
+    }
 }
 
 </script>
@@ -103,7 +126,7 @@ async function updateModifiedProjects() {
             <h1>Projects</h1>
             <span id="buttons">
                 <button>Import</button>
-                <button>Create</button>
+                <button @click="createProjectModal()">Create</button>
             </span>
         </div>
 
@@ -146,8 +169,8 @@ async function updateModifiedProjects() {
         </table>
 
         <!-- settings modal -->
-        <SideModal :open="settingsModal.open" @close="updateModifiedProjects()">
-            <h2>Settings</h2>
+        <SideModal :open="settingsModal.open" :close="updateModifiedProjects">
+            <h2>{{ settingsModal.type == 'Create' ? 'Create Project' : 'Modify Project' }}</h2>
             <br />
             <div v-if="settingsModal.project">
                 <label for="project-name">Project Name:</label>
@@ -186,13 +209,6 @@ async function updateModifiedProjects() {
     transition-duration: 0.5s;
 }
 
-#header button:hover {
-    filter: brightness(1.1);
-}
-
-#header button:active {
-    filter: brightness(0.9);
-}
 
 table {
     width: 100%;

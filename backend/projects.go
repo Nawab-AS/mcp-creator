@@ -27,7 +27,7 @@ type Project struct {
 	Path         string `json:"path"`
 	Star         bool   `json:"star"`
 	LastModified string `json:"lastModified"`
-	Status       Status `json:"status"`
+	Status       Status `json:"status,omitempty"`
 	ModelUsed    string `json:"modelUsed"`
 }
 
@@ -114,9 +114,6 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 			project.ModelUsed = s
 			valid = true
 		}
-	default:
-		fmt.Printf("Invalid attribute `%s` for project `%s`\n", attribute, projectName)
-		return 400
 	}
 
 	if !valid {
@@ -130,4 +127,31 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 
 	fmt.Printf("Modified project `%s`: set `%s` --> `%v`\n", projectName, attribute, value)
 	return 200
+}
+
+func (a *Projects) CreateProject(name string, path string, model string) int {
+	if name == "" || path == "" || model == "" {
+		fmt.Printf("Invalid project: name, path, and model are required\n")
+		return 400
+	}
+
+	// check if project with same name already exists
+	for _, p := range projects {
+		if p.Name == name {
+			fmt.Printf("Project `%s` already exists\n", name)
+			return 409
+		}
+	}
+
+	projects = append(projects, Project{
+		Name:         name,
+		Path:         path,
+		Star:         false,
+		LastModified: time.Now().Format(time.RFC3339),
+		Status:       StatusUnknown,
+		ModelUsed:    model,
+	})
+
+	fmt.Printf("Created project `%s`\n", name)
+	return 201
 }

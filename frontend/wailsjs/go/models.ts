@@ -23,7 +23,7 @@ export namespace backend {
 	    path: string;
 	    star: boolean;
 	    lastModified: string;
-	    status: number;
+	    status?: number;
 	    modelUsed: string;
 	
 	    static createFrom(source: any = {}) {

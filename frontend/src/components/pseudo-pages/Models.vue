@@ -92,14 +92,6 @@ async function modifyModel() {
     background-color: v-bind('filter === "Installed" ? "#b71c1c" : "#004f94"');
 }
 
-#header button:hover {
-    filter: brightness(1.1);
-}
-
-#header button:active {
-    filter: brightness(0.9);
-}
-
 #status {
     margin: 0 10px 8px;
     color: #b7c6e9;
