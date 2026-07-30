@@ -9,7 +9,9 @@ import (
 // Projects struct
 type Projects struct{ ctx context.Context }
 
-func (a *Projects) Startup(ctx context.Context) { a.ctx = ctx }
+func (a *Projects) Startup(ctx context.Context) {
+	a.ctx = ctx
+}
 
 // Status enums
 type Status int
@@ -33,44 +35,41 @@ type Project struct {
 
 var projects = []Project{
 	{
-		Name:         "Project 1",
-		Path:         "/path/to/project1",
+		Name:         "Mac Project",
+		Path:         "/Users/User/Documents/project1/",
 		Star:         true,
 		LastModified: "2026-02-01T03:12:00Z",
-		Status:       StatusOnline,
-		ModelUsed:    "Model A",
+		ModelUsed:    "slow",
 	},
 	{
-		Name:         "Project 2",
-		Path:         "/path/to/project2",
+		Name:         "Windows Project",
+		Path:         "C:\\Users\\User\\Documents\\project2\\",
 		Star:         false,
 		LastModified: "2026-04-02T14:45:00Z",
-		Status:       StatusOffline,
-		ModelUsed:    "Model B",
+		ModelUsed:    "balanced",
 	},
 	{
-		Name:         "Project 3",
-		Path:         "/path/to/project3",
+		Name:         "Linux Project",
+		Path:         "/home/user/Documents/project3/",
 		Star:         true,
 		LastModified: "2025-10-03T09:30:00Z",
-		Status:       StatusStarting,
-		ModelUsed:    "Model C",
+		ModelUsed:    "accurate",
 	},
 	{
 		Name:         "Project 4",
-		Path:         "/very/long/abracadabra/path/to/project4",
+		Path:         "/very/long/abracadabra/path/to/project4/",
 		Star:         false,
 		LastModified: "2026-07-04T22:15:00Z",
-		Status:       StatusStopping,
-		ModelUsed:    "Model D",
+		ModelUsed:    "fast",
 	},
 }
 
-func (a *Projects) GetProjects() []Project {
-	return projects
-}
+// expose to entire package `backend`
+func getProjects() []Project { return projects }
 
-func (a *Projects) ModifyProject(projectName string, attribute string, value any) int {
+func (a *Projects) GetProjects() []Project { return projects }
+
+func (a *Projects) ModifyProject(projectName string, attribute string, value any) Response {
 	// get pointer to Project with name projectName
 	var project *Project
 	for i := range projects {
@@ -80,67 +79,110 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 		}
 	}
 
-	// project not found
 	if project == nil {
-		fmt.Printf("Project `%s` not found\n", projectName)
-		return 404
+		return Response{404, fmt.Sprintf("Project `%s` not found", projectName)}
 	}
+	var oldProjects []Project = getProjects()
+	candidate := *project
 
 	// set attribute of project to value
 	var valid bool = false
 	switch attribute {
 	case "name":
 		if s, ok := value.(string); ok {
-			project.Name = s
+			if s == "" {
+				return Response{400, "name: Name cannot be empty"}
+			}
+			for _, p := range oldProjects {
+				if p.Name == s && p.Name != projectName {
+					return Response{409, fmt.Sprintf("name: Project `%s` already exists", s)}
+				}
+			}
+			candidate.Name = s
 			valid = true
 		}
 	case "path":
 		if s, ok := value.(string); ok {
-			project.Path = s
+			if s == "" {
+				return Response{400, "path: Path cannot be empty"}
+			}
+			for _, p := range oldProjects {
+				if p.Path == s && p.Name != projectName {
+					return Response{409, "path: Project with this path already exists"}
+				}
+			}
+			candidate.Path = s
 			valid = true
 		}
 	case "star":
 		if b, ok := value.(bool); ok {
-			project.Star = b
+			candidate.Star = b
 			valid = true
 		}
 	case "status":
 		if s, ok := value.(Status); ok {
-			project.Status = s
+			candidate.Status = s
 			valid = true
 		}
 	case "modelUsed":
 		if s, ok := value.(string); ok {
-			project.ModelUsed = s
+			candidate.ModelUsed = s
 			valid = true
 		}
 	}
 
 	if !valid {
-		fmt.Printf("Invalid value `%v` for attribute `%s` for project `%s`\n", value, attribute, projectName)
-		return 400
+		return Response{400, fmt.Sprintf("Invalid value `%s` for attribute `%s` for project `%s`", value, attribute, projectName)}
 	}
 
 	if attribute != "star" {
-		project.LastModified = time.Now().Format(time.RFC3339)
+		candidate.LastModified = time.Now().Format(time.RFC3339)
 	}
 
-	fmt.Printf("Modified project `%s`: set `%s` --> `%v`\n", projectName, attribute, value)
-	return 200
+	exists, err := fsExists(candidate.Path, true)
+	if err != nil || !exists {
+		return Response{400, "path: Folder does not exist"}
+	}
+	*project = candidate
+
+	return Response{200, fmt.Sprintf("Modified project `%s`: set `%s` --> `%v`\n", projectName, attribute, value)}
 }
 
-func (a *Projects) CreateProject(name string, path string, model string) int {
-	if name == "" || path == "" || model == "" {
-		fmt.Printf("Invalid project: name, path, and model are required\n")
-		return 400
+func (a *Projects) CreateProject(name string, path string, model string) Response {
+	if name == "" {
+		return Response{400, "name: Name is required"}
+	}
+	if path == "" {
+		return Response{400, "path: Path is required"}
+	}
+	if model == "" {
+		return Response{400, "model: Model is required"}
 	}
 
 	// check if project with same name already exists
 	for _, p := range projects {
 		if p.Name == name {
-			fmt.Printf("Project `%s` already exists\n", name)
-			return 409
+			return Response{409, fmt.Sprintf("name: Project `%s` already exists", name)}
 		}
+		if p.Path == path {
+			return Response{409, "path: Project with this path already exists"}
+		}
+	}
+
+	var models = GetModels()
+	var modelExists bool = false
+	for _, m := range models {
+		if m.Name == model {
+			modelExists = true
+			break
+		}
+	}
+	if !modelExists {
+		return Response{400, "model: Model does not exist"}
+	}
+	exists, err := fsExists(path, true)
+	if err != nil || !exists {
+		return Response{400, "path: Folder does not exist"}
 	}
 
 	projects = append(projects, Project{
@@ -152,6 +194,5 @@ func (a *Projects) CreateProject(name string, path string, model string) int {
 		ModelUsed:    model,
 	})
 
-	fmt.Printf("Created project `%s`\n", name)
-	return 201
+	return Response{201, "Project created successfully"}
 }

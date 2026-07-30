@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, toRaw } from 'vue'
+import { ref, onMounted, toRaw, watch } from 'vue'
 import SideModal from '../sideModal.vue'
 
-import { GetProjects, ModifyProject, CreateProject } from '../../../wailsjs/go/main/App'
+import { GetProjects, GetModels, ModifyProject, CreateProject, SelectDirDialog } from '../../../wailsjs/go/main/App'
 import type { backend } from '../../../wailsjs/go/models'
 
 const projects = ref<backend.Project[]>([])
+const models = ref<string[]>([])
 
 onMounted(async () => await refreshProjects(false))
 
 async function refreshProjects(soft=true) {
     projects.value = await GetProjects()
+    models.value = await GetModels().then(models => models.map(m => m.name))
     if (soft) return
     projects.value.sort((a, b) => {
         if (a.star && !b.star) return -1
@@ -45,8 +47,20 @@ const settingsModal = ref({
     open: false,
     initialName: '',
     type: 'Modify' as 'Modify' | 'Create',
+    error: '',
     project: null as backend.Project | null,
 })
+
+watch(
+    () => [
+        settingsModal.value.project?.name,
+        settingsModal.value.project?.path,
+        settingsModal.value.project?.modelUsed,
+    ],
+    () => {
+        settingsModal.value.error = ''
+    },
+)
 
 async function toggleStar(projectName: string) {
     const project = projects.value.find(p => p.name === projectName)
@@ -54,7 +68,10 @@ async function toggleStar(projectName: string) {
     if (project) {
         project.star = !project.star
     }
-    await ModifyProject(projectName, 'star', project.star)
+    const result = await ModifyProject(projectName, 'star', project.star)
+    if (result.statusCode !== 200) {
+        console.error(`Failed to modify project: ${result.message}`)
+    }
 }
 
 function openOptions(projectName: string) {
@@ -65,45 +82,77 @@ function openOptions(projectName: string) {
         open: true,
         initialName: project.name,
         type: 'Modify',
+        error: '',
         project: structuredClone(toRaw(project)) as backend.Project, // deep copy
     }
 }
 
 async function updateModifiedProjects(cancelled: boolean = false) {
     if (cancelled) {
-        settingsModal.value = { open: false, initialName: '', type: 'Modify', project: null }
-        return
-    }
-    let project = projects.value.find(p => p.name === settingsModal.value.initialName)
-
-    if (!project || !settingsModal.value.project) { // unlikely but just in case
-        settingsModal.value = { open: false, initialName: '', type: 'Modify', project: null }
+        settingsModal.value.open = false
         return
     }
 
+    if (!settingsModal.value.project) return true;
 
-    const updatedProject = settingsModal.value.project
-    updatedProject.name = updatedProject.name.trim()
-
-    // if the name changed, update first to avoid conflicts
-    if (project.name !== updatedProject.name) {
-        await ModifyProject(project.name, 'name', updatedProject.name)
-        project.name = updatedProject.name
-    }
-
-    const keys = Object.keys(updatedProject) as (keyof backend.Project)[]
-    for (const key of keys) {
-        if (project[key] !== updatedProject[key]) {
-            await ModifyProject(project.name, key, updatedProject[key])
+    if (settingsModal.value.type === 'Create') {
+        const result = await CreateProject(settingsModal.value.project.name, settingsModal.value.project.path, settingsModal.value.project.modelUsed)
+        if (result.statusCode !== 201) {
+            settingsModal.value.error = result.message
+            return true
         }
+
+        settingsModal.value.open = false
+        await refreshProjects(false)
+        return
+
+    } else if (settingsModal.value.type === 'Modify') {
+        let project = projects.value.find(p => p.name === settingsModal.value.initialName)
+
+        if (!project || !settingsModal.value.project) { // unlikely but just in case
+            settingsModal.value.open = false
+            return
+        }
+
+        const updatedProject = settingsModal.value.project
+
+        // if the name changed, update first to avoid conflicts
+        if (project.name !== updatedProject.name) {
+            const result = await ModifyProject(project.name, 'name', updatedProject.name)
+            if (result.statusCode !== 200) {
+                settingsModal.value.error = result.message
+                return true
+            }
+            project.name = updatedProject.name
+        }
+
+        const keys = Object.keys(updatedProject) as (keyof backend.Project)[]
+        for (const key of keys) {
+            if (project[key] !== updatedProject[key]) {
+                const result = await ModifyProject(project.name, key, updatedProject[key])
+                if (result.statusCode !== 200) {
+                    settingsModal.value.error = result.message
+                    return true
+                }
+            }
+        }
+        settingsModal.value.open = false
+        await refreshProjects(false)
     }
-    settingsModal.value = { open: false, initialName: '', type: 'Modify', project: null }
-    await refreshProjects(false)
+}
+
+async function selectProjectDirectory(title: string) {
+    if (!settingsModal.value.project) return
+
+    const selectedDirectory = await SelectDirDialog(title)
+    if (selectedDirectory) {
+        settingsModal.value.project.path = selectedDirectory
+    }
 }
 
 function createProjectModal() {
     let project: backend.Project = {
-        name: 'My New Project',
+        name: '',
         path: '',
         star: false,
         lastModified: new Date().toISOString(),
@@ -114,6 +163,7 @@ function createProjectModal() {
         open: true,
         initialName: project.name,
         type: 'Create',
+        error: '',
         project,
     }
 }
@@ -125,8 +175,8 @@ function createProjectModal() {
         <div id="header">
             <h1>Projects</h1>
             <span id="buttons">
-                <button>Import</button>
-                <button @click="createProjectModal()">Create</button>
+                <button class="import">Import</button>
+                <button class="create" @click="createProjectModal()">Create</button>
             </span>
         </div>
 
@@ -157,7 +207,8 @@ function createProjectModal() {
                             :class="{ 'unstarred': !project.star, 'star': true }">
                     </td>
                     <td class="project-name">
-                        {{ project.name }} <br/> <code>{{ project.path }}</code>
+                        {{ project.name }} <br/>
+                        <p class="path"> <span> <code>/{{ project.path }}</code> </span> </p>
                     </td>
                     <td>{{ friendlyDate(project.lastModified) }}</td>
                     <td>{{ project.modelUsed }}</td>
@@ -173,14 +224,27 @@ function createProjectModal() {
             <h2>{{ settingsModal.type == 'Create' ? 'Create Project' : 'Modify Project' }}</h2>
             <br />
             <div v-if="settingsModal.project">
-                <label for="project-name">Project Name:</label>
-                <input type="text" id="project-name" v-model="settingsModal.project.name" />
+                <label for="project-name">Project Name</label>
+                <input type="text" id="project-name" v-model="settingsModal.project.name" placeholder="My New Project" maxlength="20"/>
+                <p class="error" v-if="settingsModal.error.startsWith('name: ')">{{ settingsModal.error.slice('name: '.length) }}</p>
                 <br /><br />
-                <label for="project-path">Project Path:</label>
-                <input type="text" id="project-path" v-model="settingsModal.project.path" />
-                <br /><br />
-                <label for="project-model">Model Used:</label>
-                <input type="text" id="project-model" v-model="settingsModal.project.modelUsed" />
+
+                <label for="project-path">Project Folder</label>
+                <div id="project-path">
+                    <input type="text" v-model="settingsModal.project.path" readonly placeholder="Select a project folder"/>
+                    <button type="button" @click="selectProjectDirectory('Select your project folder')">Browse</button>
+                </div>
+                <p class="error" v-if="settingsModal.error.startsWith('path: ')">{{ settingsModal.error.slice('path: '.length) }}</p>
+                <br />
+
+                <div id="project-model">
+                    <label for="project-model">Model</label>
+                    <select v-model="settingsModal.project.modelUsed">
+                        <option default value="" disabled>Select a model</option>
+                        <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
+                    </select>
+                </div>
+                <p class="error" v-if="settingsModal.error.startsWith('model: ')">{{ settingsModal.error.slice('model: '.length) }}</p>
             </div>
         </SideModal>
     </div>
@@ -207,6 +271,80 @@ function createProjectModal() {
     border-radius: 5px;
     cursor: pointer;
     transition-duration: 0.5s;
+}
+
+#header button.import {
+    background-color: #454545;
+    color: white;
+}
+
+#header button.create {
+    background-color: #328435;
+    color: white;
+}
+
+#project-name {
+    outline: none;
+    border: 1px solid #454545;
+    border-radius: 5px;
+    padding: 5px 10px;
+    width: calc(100% - 20px);
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: white;
+    background-color: #242424;
+}
+
+#project-path {
+    display: flex;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+#project-path input {
+    flex: 1;
+    outline: none;
+    direction: rtl;
+    text-align: left;
+    padding: 5px 12px;
+    border: 1px solid #454545;
+    border-radius: 5px;
+    background-color: #242424;
+    color: white;
+    font-size: 0.9rem;
+}
+
+#project-path button {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: #454545;
+    color: white;
+    font-size: 0.9rem;
+}
+
+#project-model {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#project-model select {
+    outline: none;
+    border: 1px solid #454545;
+    border-radius: 5px;
+    padding: 5px 10px;
+    width: calc(100% - 20px);
+    font-size: 0.8rem;
+    color: white;
+    background-color: #242424;
+}
+
+p.error {
+    color: #b71c1c;
+    font-size: 0.8rem;
+    margin: 5px 0 0 0;
 }
 
 
@@ -267,13 +405,21 @@ td:hover>img.star.unstarred, tr:hover>td>img.options {
 }
 
 td.project-name {
-    word-break: break-all;
     font-size: 1rem;
 }
 
-td.project-name code {
+td.project-name>p.path {
+    margin: 0;
     font-size: 0.8rem;
     color: #888;
+    max-width: min-content;
+
+    display: flex;
+    flex-direction: row-reverse;
+    overflow: hidden;
+    white-space: nowrap;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 15px);
+    mask-image: linear-gradient(to right, transparent 0%, #000 15px);
 }
 
 </style>

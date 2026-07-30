@@ -21,3 +21,7 @@ export function GetProjects() {
 export function ModifyProject(arg1, arg2, arg3) {
   return window['go']['main']['App']['ModifyProject'](arg1, arg2, arg3);
 }
+
+export function SelectDirDialog(arg1) {
+  return window['go']['main']['App']['SelectDirDialog'](arg1);
+}

@@ -40,6 +40,20 @@ export namespace backend {
 	        this.modelUsed = source["modelUsed"];
 	    }
 	}
+	export class Response {
+	    statusCode: number;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Response(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.statusCode = source["statusCode"];
+	        this.message = source["message"];
+	    }
+	}
 
 }
 

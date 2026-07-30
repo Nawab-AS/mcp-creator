@@ -22,7 +22,10 @@ type Model struct {
 	Path        string `json:"path,omitempty"`
 }
 
-func (a *Models) GetModels() []Model {
+// expose to entire package `backend`
+func (a *Models) GetModels() []Model { return GetModels() }
+
+func GetModels() []Model {
 	return []Model{
 		{
 			Name:        "slow",

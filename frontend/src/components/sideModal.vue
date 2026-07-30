@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 
 const props = defineProps<{
   open: boolean,
@@ -8,17 +8,21 @@ const props = defineProps<{
 }>()
 
 
-// forced open flash
-const flash_duration = 200
+const flashDuration = 250
 const forcedOpen = ref(false)
-async function close(cancelled?: boolean) {
-   forcedOpen.value = await props.close?.(cancelled) || false
+let flashTimeout: ReturnType<typeof setTimeout> | undefined
 
-   // flash `warning`
-   if (!forcedOpen.value) return;
-   setTimeout(() => {
-	   forcedOpen.value = false
-   }, flash_duration/2)
+async function close(cancelled?: boolean) {
+  const keepOpen = await props.close?.(cancelled) || false
+  if (!keepOpen) return
+
+  clearTimeout(flashTimeout)
+  forcedOpen.value = false
+  await nextTick()
+  forcedOpen.value = true
+  flashTimeout = setTimeout(() => {
+    forcedOpen.value = false
+  }, flashDuration)
 
 }
 </script>
@@ -30,8 +34,8 @@ async function close(cancelled?: boolean) {
         </Transition>
         <Transition name="slide" appear>
             <div v-if="props.open" id="side-modal" @click.stop :class="{ flash: forcedOpen }">
-                <slot>No slot content</slot>
-				<span>
+        <slot>No slot content</slot>
+        <span id="modal-actions">
 					<button @click.stop="close()" class="save">Save</button>
 					<button @click.stop="close(true)" class="cancel">Cancel</button>
 				</span>
@@ -54,26 +58,43 @@ async function close(cancelled?: boolean) {
 
 #side-modal {
     position: fixed;
-    top: 0;
+    top: -1px;
     right: 0;
     width: 300px;
-    height: calc(100vh - 40px);
+    height: calc(100vh - 40px - 2px);
     background-color: #242424;
     color: white;
     padding: 20px;
+    border: 1px solid transparent;
     border-radius: 20px 0 0 20px;
     z-index: 1001;
-	transition-duration: v-bind(flash_duration/2 + 'ms');
 }
 
 #side-modal.flash {
-	border-color: #ff0000;
-	background-color: #ff0000;
+  animation: warning-flash v-bind(flashDuration + 'ms') ease-in-out;
+}
+
+@keyframes warning-flash {
+  0%, 100% {
+    background-color: #242424;
+    border-color: transparent;
+  }
+  45%, 65% {
+    background-color: #6b2424;
+    border-color: #e15a5a;
+  }
 }
 
 
-#side-modal button {
-	margin: 10vh 10px 0 0;
+#modal-actions {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+#modal-actions button {
 	padding: 5px 10px;
 	font-size: 1rem;
 	border: none;
@@ -83,12 +104,12 @@ async function close(cancelled?: boolean) {
 }
 
 #side-modal button.save {
-	background-color: #4CAF50;
+	background-color: #328435;
 	color: white;
 }
 
 #side-modal button.cancel {
-	background-color: #f44336;
+	background-color: #b71c1c;
 	color: white;
 }
 

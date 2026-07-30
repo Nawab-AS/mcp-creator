@@ -10,6 +10,7 @@ type App struct {
 	ctx context.Context
 	*backend.Projects
 	*backend.Models
+	*backend.Common
 }
 
 // NewApp creates a new App application struct
@@ -17,6 +18,7 @@ func NewApp() *App {
 	return &App{
 		Projects: &backend.Projects{},
 		Models:   &backend.Models{},
+		Common:   &backend.Common{},
 	}
 }
 
@@ -27,4 +29,5 @@ func (a *App) startup(ctx context.Context) {
 
 	a.Projects.Startup(ctx)
 	a.Models.Startup(ctx)
+	a.Common.Startup(ctx)
 }
