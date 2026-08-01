@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
 
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import Sections from '../Selector.vue'
 
 // backend imports
@@ -35,6 +35,16 @@ const visibleModels = computed(() => models.value.filter((item) =>
     item.installed === (filter.value === 'Installed')
 ))
 
+watch(filter, (_) => { // collapse bufferedModels
+    for (const [modelName, status] of bufferedModels.value.entries()) {
+        const model = models.value.find((m) => m.name === modelName)
+        if (!model) continue;
+        if (status.endsWith('ing')) continue;
+        model.installed = bufferedModels.value.get(modelName) === 'Installed'
+        bufferedModels.value.delete(modelName)
+    }
+})
+
 
 async function modifyModel(name: string) {
     if (bufferedModels.value.get(name) != undefined) {
@@ -61,9 +71,9 @@ async function modifyModel(name: string) {
     <div id="models">
         <div id="header">
             <h1>Models</h1>
-            <span>
+            <!-- <span>
                 <button>Import</button>
-            </span>
+            </span> -->
         </div>
         <Sections :options="['Available', 'Installed']" v-model="filter"/>
         <div id="model-list">
@@ -78,12 +88,12 @@ async function modifyModel(name: string) {
                     <code v-if="m.size_mb">{{ m.size_mb }} MB</code>
                     <button
                         class="model-action"
-                        :class="{ destructive: bufferedModels.get(m.name) === 'Installed' || filter === 'Installed' }"
+                        :class="{ destructive: bufferedModels.get(m.name) === 'Installed' || (bufferedModels.get(m.name) === undefined && filter === 'Installed') }"
                         @click="modifyModel(m.name)"
                         :disabled="(bufferedModels.get(m.name) ?? '').endsWith('ing')"
                     >
                         <span v-if="bufferedModels.get(m.name)?.endsWith('ing')">{{ bufferedModels.get(m.name) }}...</span>
-                        <span v-else-if="bufferedModels.has(m.name)">{{ bufferedModels.get(m.name) == 'Installed' ? 'Delete' : 'Install' }}</span>
+                        <span v-else-if="bufferedModels.has(m.name)">{{ bufferedModels.get(m.name) === 'Installed' ? 'Delete' : 'Install' }}</span>
                         <span v-else>{{ filter === 'Installed' ? 'Delete' : 'Download' }}</span>
                     </button>
                 </div>
@@ -101,10 +111,10 @@ async function modifyModel(name: string) {
 }
 
 #header {
-    flex: 0 0 auto;
+    /* flex: 0 0 auto;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: space-between; */
     margin: 20px 15px;
 }
 
@@ -113,7 +123,7 @@ async function modifyModel(name: string) {
     margin: 0;
 }
 
-#header button {
+/* #header button {
     margin-left: 10px;
     padding: 5px 10px;
     font-size: 1rem;
@@ -123,7 +133,7 @@ async function modifyModel(name: string) {
     color: white;
     cursor: pointer;
     transition-duration: 0.5s;
-}
+} */
 
 #status {
     margin: 0 10px 8px;
