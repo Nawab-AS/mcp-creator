@@ -2,7 +2,7 @@
 import { EventsOn } from "../../wailsjs/runtime/runtime"
 import { onBeforeUnmount, ref } from "vue"
 
-type Operation = "download" | "delete"
+type Operation = "download" | "delete" | "runtime-download"
 
 type Update = {
     operation: Operation
@@ -33,20 +33,24 @@ function startUpdate(operation: Operation, modelName: string) {
 }
 
 function setProgress(operation: Operation, modelName: string, progress: number) {
-    const update = getUpdate(operation, modelName)
-    if (update) {
-        update.progress = Math.max(0, Math.min(progress, 1))
+    let update = getUpdate(operation, modelName)
+    if (!update) {
+        startUpdate(operation, modelName)
+        update = getUpdate(operation, modelName)
     }
+
+    update!.progress = Math.max(0, Math.min(progress, 1))
 }
 
 function completeUpdate(operation: Operation, modelName: string) {
-    const update = getUpdate(operation, modelName)
+    let update = getUpdate(operation, modelName)
     if (!update) {
-        return
+        startUpdate(operation, modelName)
+        update = getUpdate(operation, modelName)
     }
 
-    update.progress = 1
-    update.complete = true
+    update!.progress = 1
+    update!.complete = true
     setTimeout(() => {
         removeUpdate(operation, modelName)
     }, 3000)
@@ -57,6 +61,12 @@ const unsubscribeListeners = (['download', 'delete'] as const).flatMap((operatio
     EventsOn(`model-${operation}-progress`, (modelName: string, progress: number) => setProgress(operation, modelName, progress)),
     EventsOn(`model-${operation}-completed`, (modelName: string) => completeUpdate(operation, modelName)),
 ])
+
+unsubscribeListeners.push(
+    EventsOn("onnxruntime-download-started", (libraryName: string) => startUpdate("runtime-download", libraryName)),
+    EventsOn("onnxruntime-download-progress", (libraryName: string, progress: number) => setProgress("runtime-download", libraryName, progress)),
+    EventsOn("onnxruntime-download-completed", (libraryName: string) => completeUpdate("runtime-download", libraryName)),
+)
 
 onBeforeUnmount(() => {
     unsubscribeListeners.forEach((unsubscribe) => unsubscribe())
@@ -70,7 +80,7 @@ onBeforeUnmount(() => {
                 <div class="update-header">
                     <p>
                         <span class="update-status">
-                            {{ update.complete ? (update.operation === 'download' ? 'Downloaded' : 'Deleted') : (update.operation === 'download' ? 'Downloading' : 'Deleting') }}
+                            {{ update.complete ? (update.operation === 'delete' ? 'Deleted' : 'Downloaded') : (update.operation === 'delete' ? 'Deleting' : 'Downloading') }}
                         </span>
                         <span class="model-name" :title="update.modelName">{{ update.modelName }}</span>
                     </p>

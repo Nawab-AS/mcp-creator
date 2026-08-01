@@ -14,7 +14,7 @@ const pages = {
   // "prebuilt": Prebuilt // TODO: add prebuilt page
 }
 
-const name = ref("Hamid Syed")
+const name = ref("Hi S") // Initials: HS
 const page = ref("home")
 </script>
 

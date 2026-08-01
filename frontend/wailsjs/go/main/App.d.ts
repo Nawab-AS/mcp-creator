@@ -6,11 +6,21 @@ export function CreateProject(arg1:string,arg2:string,arg3:string):Promise<backe
 
 export function DeleteModel(arg1:string):Promise<void>;
 
+export function DownloadFile(arg1:string,arg2:string,arg3:any):Promise<void>;
+
 export function DownloadModel(arg1:string):Promise<void>;
+
+export function EmitEvent(arg1:string,arg2:Array<any>):Promise<void>;
+
+export function FsExists(arg1:string,arg2:boolean):Promise<boolean>;
+
+export function GetConfigPath():Promise<string>;
 
 export function GetModels():Promise<Array<backend.Model>>;
 
 export function GetProjects():Promise<Array<backend.Project>>;
+
+export function ModelStorageDirectory(arg1:string):Promise<string>;
 
 export function ModifyProject(arg1:string,arg2:string,arg3:any):Promise<backend.Response>;
 

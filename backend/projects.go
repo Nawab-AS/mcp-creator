@@ -9,9 +9,7 @@ import (
 // Projects struct
 type Projects struct{ ctx context.Context }
 
-func (a *Projects) Startup(ctx context.Context) {
-	a.ctx = ctx
-}
+func (a *Projects) Startup(ctx context.Context) { a.ctx = ctx }
 
 // Status enums
 type Status int
@@ -139,7 +137,7 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 		candidate.LastModified = time.Now().Format(time.RFC3339)
 	}
 
-	exists, err := fsExists(candidate.Path, true)
+	exists, err := FsExists(candidate.Path, true)
 	if err != nil || !exists {
 		return Response{400, "path: Folder does not exist"}
 	}
@@ -180,7 +178,7 @@ func (a *Projects) CreateProject(name string, path string, model string) Respons
 	if !modelExists {
 		return Response{400, "model: Model does not exist"}
 	}
-	exists, err := fsExists(path, true)
+	exists, err := FsExists(path, true)
 	if err != nil || !exists {
 		return Response{400, "path: Folder does not exist"}
 	}

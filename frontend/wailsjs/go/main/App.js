@@ -10,8 +10,24 @@ export function DeleteModel(arg1) {
   return window['go']['main']['App']['DeleteModel'](arg1);
 }
 
+export function DownloadFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DownloadFile'](arg1, arg2, arg3);
+}
+
 export function DownloadModel(arg1) {
   return window['go']['main']['App']['DownloadModel'](arg1);
+}
+
+export function EmitEvent(arg1, arg2) {
+  return window['go']['main']['App']['EmitEvent'](arg1, arg2);
+}
+
+export function FsExists(arg1, arg2) {
+  return window['go']['main']['App']['FsExists'](arg1, arg2);
+}
+
+export function GetConfigPath() {
+  return window['go']['main']['App']['GetConfigPath']();
 }
 
 export function GetModels() {
@@ -20,6 +36,10 @@ export function GetModels() {
 
 export function GetProjects() {
   return window['go']['main']['App']['GetProjects']();
+}
+
+export function ModelStorageDirectory(arg1) {
+  return window['go']['main']['App']['ModelStorageDirectory'](arg1);
 }
 
 export function ModifyProject(arg1, arg2, arg3) {

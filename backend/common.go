@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mcp-creator/backend/mcpserver"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,7 +20,18 @@ import (
 
 type Common struct{ ctx context.Context }
 
-func (a *Common) Startup(ctx context.Context) { a.ctx = ctx }
+func (a *Common) Startup(ctx context.Context) {
+	a.ctx = ctx
+	go func() {
+		if err := mcpserver.OnnxStartup(a); err != nil {
+			fmt.Println("Error starting ONNX Runtime:", err)
+		}
+	}()
+}
+
+func (a *Common) EmitEvent(eventName string, data ...interface{}) {
+	rt.EventsEmit(a.ctx, eventName, data...)
+}
 
 type Response struct {
 	StatusCode int    `json:"statusCode"`
@@ -37,7 +49,10 @@ func (a *Common) SelectDirDialog(title string) string {
 	return dir
 }
 
-func fsExists(path string, isDir bool) (bool, error) {
+func FsExists(path string, isDir bool) (bool, error) {
+	return (&Common{}).FsExists(path, isDir)
+}
+func (m *Common) FsExists(path string, isDir bool) (bool, error) {
 	info, err := os.Stat(path)
 	if err == nil {
 		// Path exists. verify dir/file
@@ -56,6 +71,9 @@ func fsExists(path string, isDir bool) (bool, error) {
 }
 
 func GetConfigPath() (string, error) {
+	return (&Common{}).GetConfigPath()
+}
+func (m *Common) GetConfigPath() (string, error) {
 	baseDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("could not get user config dir: %w", err)
@@ -71,7 +89,11 @@ func GetConfigPath() (string, error) {
 }
 
 func ModelStorageDirectory(modelName string) (string, error) {
-	configDirectory, err := GetConfigPath()
+	return (&Common{}).ModelStorageDirectory(modelName)
+}
+
+func (m *Common) ModelStorageDirectory(modelName string) (string, error) {
+	configDirectory, err := m.GetConfigPath()
 	if err != nil {
 		return "", fmt.Errorf("get user config directory: %w", err)
 	}
@@ -100,7 +122,11 @@ func (w *countingWriter) Write(data []byte) (int, error) {
 	w.written.Add(int64(n))
 	return n, err
 }
+
 func DownloadFile(sourceURL string, targetPath string, onProgress func(float64)) error {
+	return (&Common{}).DownloadFile(sourceURL, targetPath, onProgress)
+}
+func (m *Common) DownloadFile(sourceURL string, targetPath string, onProgress func(float64)) error {
 	request, err := http.NewRequest(http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return fmt.Errorf("create download request: %w", err)
