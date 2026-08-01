@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -130,77 +127,6 @@ var models = []Model{
 	},
 }
 
-const progressUpdateInterval = 250 * time.Millisecond
-
-var modelDownloadClient = &http.Client{Timeout: 10 * time.Minute}
-
-type countingWriter struct {
-	writer  io.Writer
-	written atomic.Int64
-}
-
-func (w *countingWriter) Write(data []byte) (int, error) {
-	n, err := w.writer.Write(data)
-	w.written.Add(int64(n))
-	return n, err
-}
-
-func downloadFile(sourceURL string, targetPath string, onProgress func(float64)) error {
-	request, err := http.NewRequest(http.MethodGet, sourceURL, nil)
-	if err != nil {
-		return fmt.Errorf("create download request: %w", err)
-	}
-
-	response, err := modelDownloadClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("download %s: %w", sourceURL, err)
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("download %s: unexpected status %s", sourceURL, response.Status)
-	}
-
-	file, err := os.Create(targetPath)
-	if err != nil {
-		return fmt.Errorf("create %s: %w", targetPath, err)
-	}
-
-	writer := &countingWriter{writer: file}
-	stopProgress := make(chan struct{})
-	progressDone := make(chan struct{})
-	go func() {
-		defer close(progressDone)
-		ticker := time.NewTicker(progressUpdateInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				if response.ContentLength > 0 {
-					onProgress(float64(writer.written.Load()) / float64(response.ContentLength))
-				}
-			case <-stopProgress:
-				return
-			}
-		}
-	}()
-
-	_, copyErr := io.Copy(writer, response.Body)
-	close(stopProgress)
-	<-progressDone
-	closeErr := file.Close()
-	if copyErr != nil {
-		return fmt.Errorf("write %s: %w", targetPath, copyErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("close %s: %w", targetPath, closeErr)
-	}
-
-	onProgress(1)
-	return nil
-}
-
 func (a *Models) DownloadModel(modelName string) {
 	fmt.Println("Downloading model:", modelName)
 
@@ -246,7 +172,7 @@ func (a *Models) DownloadModel(modelName string) {
 		}
 
 		download := func(sourceURL string, filename string, baseProgress float64, weight float64) error {
-			return downloadFile(sourceURL, filepath.Join(stagingDirectory, filename), func(progress float64) {
+			return DownloadFile(sourceURL, filepath.Join(stagingDirectory, filename), func(progress float64) {
 				runtime.EventsEmit(a.ctx, "model-download-progress", modelName, baseProgress+(progress*weight))
 			})
 		}

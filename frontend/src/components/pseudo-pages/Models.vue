@@ -98,6 +98,10 @@ async function modifyModel(name: string) {
                     </button>
                 </div>
             </div>
+            <p v-if="visibleModels.length === 0" class="no-models">
+                <span v-if="filter === 'Installed'">No models installed...<br />Try installing one!</span>
+                <span v-if="filter === 'Available'">Wow!<br />You actually downloaded all available models.</span>
+            </p>
         </div>
     </div>
 </template>
@@ -151,6 +155,13 @@ async function modifyModel(name: string) {
     padding: 16px;
     overflow-y: auto;
     align-content: start;
+}
+
+.no-models {
+    width: 599px;
+    text-align: center;
+    font-size: 1.2rem;
+    margin-top: 25vh;
 }
 
 .model-card {

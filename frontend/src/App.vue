@@ -7,7 +7,12 @@ import Models from "./components/pseudo-pages/Models.vue";
 import Prebuilt from "./components/pseudo-pages/Prebuilt.vue";
 import ProgressUpdates from "./components/ProgressUpdates.vue";
 
-const pages = {"home": Home, "projects": Projects, "models": Models, "prebuilt": Prebuilt}
+const pages = {
+  "home": Home,
+  "projects": Projects,
+  "models": Models,
+  // "prebuilt": Prebuilt // TODO: add prebuilt page
+}
 
 const name = ref("Hamid Syed")
 const page = ref("home")
