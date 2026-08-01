@@ -5,6 +5,7 @@ import Home from "./components/pseudo-pages/Home.vue";
 import Projects from "./components/pseudo-pages/Projects.vue";
 import Models from "./components/pseudo-pages/Models.vue";
 import Prebuilt from "./components/pseudo-pages/Prebuilt.vue";
+import ProgressUpdates from "./components/ProgressUpdates.vue";
 
 const pages = {"home": Home, "projects": Projects, "models": Models, "prebuilt": Prebuilt}
 
@@ -20,11 +21,15 @@ const page = ref("home")
         <img src="./assets/images/settings.svg" alt="settings button">
       </div>
       <hr>
-      <ul id="menu">
-        <li v-for="(_, itemName) in pages" :key="itemName" @click="page = itemName" :class="{ active: page === itemName }">
-          <p>{{ itemName.charAt(0).toUpperCase() + itemName.slice(1) }}</p>
-        </li>
-      </ul>
+      <div id="data">
+        <ul id="menu">
+          <li v-for="(_, itemName) in pages" :key="itemName" @click="page = itemName" :class="{ active: page === itemName }">
+            <p>{{ itemName.charAt(0).toUpperCase() + itemName.slice(1) }}</p>
+          </li>
+  
+        </ul>
+        <ProgressUpdates />
+      </div>
     </div>
     <div id="content">
       <Home v-if="page === 'home'" />
@@ -83,9 +88,18 @@ hr {
   margin: 0;
 }
 
+#data {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 70px);
+  justify-content: space-between;
+}
+
 #menu {
   list-style: none;
+  max-height: min-content;
   padding: 0;
+  margin: 0;
   height: calc(100vh - 100px);
   gap: 10px;
 }

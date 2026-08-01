@@ -2,9 +2,12 @@ package backend
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 
 	// "fmt"
 	rt "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -46,4 +49,34 @@ func fsExists(path string, isDir bool) (bool, error) {
 	}
 
 	return false, err // Another error occurred (e.g., permission denied)
+}
+
+func GetConfigPath() (string, error) {
+	baseDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get user config dir: %w", err)
+	}
+
+	appConfigDir := filepath.Join(baseDir, "mcp-creator")
+	err = os.MkdirAll(appConfigDir, 0755) // if not already existing
+	if err != nil {
+		return "", fmt.Errorf("could not create config folder: %w", err)
+	}
+
+	return appConfigDir, nil
+}
+
+func ModelStorageDirectory(modelName string) (string, error) {
+	configDirectory, err := GetConfigPath()
+	if err != nil {
+		return "", fmt.Errorf("get user config directory: %w", err)
+	}
+
+	err = os.MkdirAll(filepath.Join(configDirectory, "models"), 0755)
+	if err != nil {
+		return "", fmt.Errorf("could not create models folder: %w", err)
+	}
+
+	nameHash := sha256.Sum256([]byte(modelName))
+	return filepath.Join(configDirectory, "models", fmt.Sprintf("%x", nameHash[:8])), nil
 }

@@ -6,6 +6,10 @@ export function CreateProject(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateProject'](arg1, arg2, arg3);
 }
 
+export function DeleteModel(arg1) {
+  return window['go']['main']['App']['DeleteModel'](arg1);
+}
+
 export function DownloadModel(arg1) {
   return window['go']['main']['App']['DownloadModel'](arg1);
 }

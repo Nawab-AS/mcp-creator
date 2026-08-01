@@ -4,7 +4,9 @@ import {backend} from '../models';
 
 export function CreateProject(arg1:string,arg2:string,arg3:string):Promise<backend.Response>;
 
-export function DownloadModel(arg1:string):Promise<string>;
+export function DeleteModel(arg1:string):Promise<void>;
+
+export function DownloadModel(arg1:string):Promise<void>;
 
 export function GetModels():Promise<Array<backend.Model>>;
 

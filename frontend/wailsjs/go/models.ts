@@ -5,6 +5,9 @@ export namespace backend {
 	    description: string;
 	    installed: boolean;
 	    path?: string;
+	    onnx_url?: string;
+	    tokenizer_url?: string;
+	    size_mb?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Model(source);
@@ -16,6 +19,9 @@ export namespace backend {
 	        this.description = source["description"];
 	        this.installed = source["installed"];
 	        this.path = source["path"];
+	        this.onnx_url = source["onnx_url"];
+	        this.tokenizer_url = source["tokenizer_url"];
+	        this.size_mb = source["size_mb"];
 	    }
 	}
 	export class Project {

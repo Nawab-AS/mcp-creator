@@ -62,6 +62,21 @@ watch(
     },
 )
 
+watch(
+    () => settingsModal.value.open,
+    (open) => {
+        if (!open) {
+            settingsModal.value = {
+                open: false,
+                initialName: '',
+                type: 'Modify',
+                error: '',
+                project: null,
+            }
+        }
+    },
+)
+
 async function toggleStar(projectName: string) {
     const project = projects.value.find(p => p.name === projectName)
     if (!project) return
