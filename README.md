@@ -3,8 +3,6 @@ A simple app to create and host custom semantic search MCP servers.
 
 **NOTICE: currently, only MacOS version 12 (Monterey) is supported.**
 
-## Demo
-![](./screenshots/demo.mp4)
 
 ## Intro
 One of the main limitations with AI is its limited context window. While this is solved by **agentic RAG**, this is a problem to the average (non-technical) user.
