@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,15 +19,23 @@ import (
 	rt "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-type Common struct{ ctx context.Context }
+type Common struct {
+	ctx         context.Context
+	onnxStartup sync.Once
+}
 
 func (a *Common) Startup(ctx context.Context) {
 	a.ctx = ctx
-	go func() {
+	}
+
+func (a *Common) StartOnnxRuntime() {
+	a.onnxStartup.Do(func() {
+		go func() {
 		if err := mcpserver.OnnxStartup(a); err != nil {
-			fmt.Println("Error starting ONNX Runtime:", err)
+			fmt.Printf("Error during ONNX Runtime startup: %v\n", err)
 		}
-	}()
+		}()
+	})
 }
 
 func (a *Common) EmitEvent(eventName string, data ...interface{}) {

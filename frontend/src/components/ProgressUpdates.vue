@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { EventsOn } from "../../wailsjs/runtime/runtime"
+import { StartOnnxRuntime } from "../../wailsjs/go/main/App"
 import { onBeforeUnmount, ref } from "vue"
 
-type Operation = "download" | "delete" | "runtime-download"
+type Operation = "model-download" | "model-delete" | "onnxruntime-download"
 
 type Update = {
     operation: Operation
     modelName: string
     progress: number
     complete: boolean
+    error?: string
 }
 
 const updates = ref<Update[]>([])
@@ -26,6 +28,7 @@ function startUpdate(operation: Operation, modelName: string) {
     if (existingUpdate) {
         existingUpdate.progress = 0
         existingUpdate.complete = false
+        existingUpdate.error = undefined
         return
     }
 
@@ -51,22 +54,40 @@ function completeUpdate(operation: Operation, modelName: string) {
 
     update!.progress = 1
     update!.complete = true
+    update!.error = undefined
     setTimeout(() => {
         removeUpdate(operation, modelName)
-    }, 3000)
+    }, 2000)
 }
 
-const unsubscribeListeners = (['download', 'delete'] as const).flatMap((operation) => [
-    EventsOn(`model-${operation}-started`, (modelName: string) => startUpdate(operation, modelName)),
-    EventsOn(`model-${operation}-progress`, (modelName: string, progress: number) => setProgress(operation, modelName, progress)),
-    EventsOn(`model-${operation}-completed`, (modelName: string) => completeUpdate(operation, modelName)),
-])
+function errorUpdate(operation: Operation, modelName: string, error: string) {
+    let update = getUpdate(operation, modelName)
+    if (!update) {
+        startUpdate(operation, modelName)
+        update = getUpdate(operation, modelName)
+    }
 
-unsubscribeListeners.push(
-    EventsOn("onnxruntime-download-started", (libraryName: string) => startUpdate("runtime-download", libraryName)),
-    EventsOn("onnxruntime-download-progress", (libraryName: string, progress: number) => setProgress("runtime-download", libraryName, progress)),
-    EventsOn("onnxruntime-download-completed", (libraryName: string) => completeUpdate("runtime-download", libraryName)),
-)
+    update!.complete = false
+    update!.error = error
+    setTimeout(() => {
+        removeUpdate(operation, modelName)
+    }, 4000)
+}
+
+const unsubscribeListeners = [
+    EventsOn("started", (operation: Operation, name = operation) => startUpdate(operation, name)),
+    EventsOn("progress", (operation: Operation, nameOrProgress: string | number, progress?: number) => {
+        const name = typeof nameOrProgress === "string" ? nameOrProgress : operation
+        setProgress(operation, name, progress ?? (typeof nameOrProgress === "number" ? nameOrProgress : 0))
+    }),
+    EventsOn("completed", (operation: Operation, name = operation) => completeUpdate(operation, name)),
+    EventsOn("error", (operation: Operation, nameOrMessage: string, errorMessage?: string) => {
+        const name = errorMessage === undefined ? operation : nameOrMessage
+        errorUpdate(operation, name, errorMessage ?? nameOrMessage)
+    }),
+]
+
+StartOnnxRuntime()
 
 onBeforeUnmount(() => {
     unsubscribeListeners.forEach((unsubscribe) => unsubscribe())
@@ -76,13 +97,14 @@ onBeforeUnmount(() => {
 <template>
     <section id="progress-updates" aria-live="polite" aria-label="Model activity">
         <TransitionGroup name="progress-update" tag="div" class="updates-list">
-            <article v-for="update in updates" :key="`${update.operation}-${update.modelName}`" class="progress-update" :class="{ complete: update.complete }">
+            <article v-for="update in updates" :key="`${update.operation}-${update.modelName}`" class="progress-update" :class="{ complete: update.complete, error: update.error }">
                 <div class="update-header">
                     <p>
                         <span class="update-status">
-                            {{ update.complete ? (update.operation === 'delete' ? 'Deleted' : 'Downloaded') : (update.operation === 'delete' ? 'Deleting' : 'Downloading') }}
+                            {{ update.error ? 'Failed' : (update.complete ? (update.operation === 'model-delete' ? 'Deleted' : 'Downloaded') : (update.operation === 'model-delete' ? 'Deleting' : 'Downloading')) }}
                         </span>
-                        <span class="model-name" :title="update.modelName">{{ update.modelName }}</span>
+                        <span class="model-name">{{ update.modelName == "onnxruntime-download" ? "Indexing Runtime" : update.modelName }}</span>
+                        <span v-if="update.error" class="error-message" :title="update.error">{{ update.error }}</span>
                     </p>
                     <span class="progress-value">{{ Math.round(update.progress * 100) }}%</span>
                 </div>
@@ -159,6 +181,11 @@ Article {
     color: #86c996;
 }
 
+.error .update-status,
+.error-message {
+    color: #e58585;
+}
+
 .model-name {
     display: block;
     overflow: hidden;
@@ -192,5 +219,17 @@ Article {
 
 .complete .progress {
     background-color: #4ca964;
+}
+
+.error .progress {
+    background-color: #d65555;
+}
+
+.error-message {
+    display: block;
+    overflow: hidden;
+    font-size: 0.7rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 </style>

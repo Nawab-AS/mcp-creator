@@ -1,7 +1,7 @@
 # MCP Creator
 A simple app to create and host custom semantic search MCP servers.
 
-**NOTICE: currently, only MacOS version 12 (Monterey) is supported.**
+**NOTICE: currently, only MacOS version 12 (Monterey) is tested**
 
 
 ## Intro

@@ -1,10 +1,11 @@
 package mcpserver
 
-// cross-platform is not for now. rn its only intel-based macs with versions 12 and below
+// cross-platform is not for now. rn its only intel-based macs with versions 12
 
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 
 	ort "github.com/yalue/onnxruntime_go"
 )
@@ -39,11 +40,9 @@ func OnnxStartup(commonFuncs1 CommonFuncs) error {
 		fmt.Println("Error checking if onnxruntime binary exists:", err)
 		return err
 	} else if !fsExists {
-		common.EmitEvent("onnxruntime-download-started", "ONNX Runtime library")
 		if err := downloadOnnxRuntime(onnxBinaryPath); err != nil {
 			return err
 		}
-		common.EmitEvent("onnxruntime-download-completed", "ONNX Runtime library")
 	}
 
 	ort.SetSharedLibraryPath(onnxBinaryPath)
@@ -57,43 +56,64 @@ func OnnxStartup(commonFuncs1 CommonFuncs) error {
 }
 
 func getOnnxBinaryName() (string, error) {
-	return "onnxruntime_osx_legacy_amd64.dylib", nil
-	// if runtime.GOOS == "windows" {
-	// 	if runtime.GOARCH == "amd64" {
-	// 		return "onnxruntime.dll", nil
-	// 	}
-	// }
-	// if runtime.GOOS == "darwin" {
-	// 	if runtime.GOARCH == "arm64" {
-	// 		return "onnxruntime_arm64.dylib", nil
-	// 	}
-	// 	if runtime.GOARCH == "amd64" {
-	// 		return "onnxruntime_amd64.dylib", nil
-	// 	}
-	// }
-	// if runtime.GOOS == "linux" {
-	// 	if runtime.GOARCH == "arm64" {
-	// 		return "onnxruntime_arm64.so", nil
-	// 	}
-	// 	return "onnxruntime.so", nil
-	// }
-	// fmt.Printf("Unable to determine a path to the onnxruntime shared library"+
-	// 	" for OS \"%s\" and architecture \"%s\".\n", runtime.GOOS,
-	// 	runtime.GOARCH)
-	// return "", errors.New("unable to determine a path to the onnxruntime shared library")
+	supportedLibraries := []string{
+		"onnxruntime-linux-aarch64.so",
+		"onnxruntime-linux-x64.so",
+		"onnxruntime-osx-arm64.dylib",
+		"onnxruntime-osx-x86_64.dylib",
+		"onnxruntime-win-arm.dll",
+		"onnxruntime-win-arm64.dll",
+		"onnxruntime-win-x64.dll",
+		"onnxruntime-win-x86.dll",
+	}
+	ending, os, arch := "", "", runtime.GOARCH
+	switch runtime.GOOS {
+	case "darwin":
+		ending = "dylib"
+		os = "osx"
+		if arch == "amd64" {
+			arch = "x86_64"
+		}
+	case "linux":
+		ending = "so"
+		os = "linux"
+	case "windows":
+		ending = "dll"
+		os = "win"
+	default:
+		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+
+	name := fmt.Sprintf("onnxruntime-%s-%s.%s", os, arch, ending)
+	for _, lib := range supportedLibraries {
+		if lib == name {
+			return name, nil
+		}
+	}
+
+	return "", fmt.Errorf("unsupported architecture: %s", name)
 }
 
 func downloadOnnxRuntime(targetPath string) error {
-	// onnxBinaryName, err := getOnnxBinaryName()
-	// if err != nil {
-	// 	fmt.Println("Error determining onnxruntime binary name:", err)
-	// 	return err
-	// }
+	common.EmitEvent("started", "onnxruntime-download")
+	onnxBinaryName, err := getOnnxBinaryName()
+	if err != nil {
+		fmt.Println("Error determining onnxruntime binary name:", err)
+		return err
+	}
 
-	// downloadURL := fmt.Sprintf("https://github.com/yalue/onnxruntime_go_examples/raw/refs/heads/master/third_party/%s", onnxBinaryName)
-	downloadURL := "https://github.com/Nawab-AS/osx-legacy-onnxruntime/raw/refs/heads/main/onnxruntime_osx_legacy_x84_64.dylib"
+	downloadURL := fmt.Sprintf("https://github.com/Nawab-AS/legacy-onnx-runtimes/raw/refs/heads/main/%s", onnxBinaryName)
 
-	return common.DownloadFile(downloadURL, targetPath, func(progress float64) {
-		common.EmitEvent("onnxruntime-download-progress", "ONNX Runtime library", progress)
+	err = common.DownloadFile(downloadURL, targetPath, func(progress float64) {
+		common.EmitEvent("progress", "onnxruntime-download", progress)
 	})
+
+	if err != nil {
+		common.EmitEvent("error", "onnxruntime-download", "Network error")
+		return err
+	}
+
+	common.EmitEvent("completed", "onnxruntime-download")
+
+	return nil
 }

@@ -153,48 +153,55 @@ func (a *Models) DownloadModel(modelName string) {
 	}
 
 	go func() {
-		runtime.EventsEmit(a.ctx, "model-download-started", modelName)
+		runtime.EventsEmit(a.ctx, "started", "model-download", modelName)
 
 		modelDirectory, err := ModelStorageDirectory(modelName)
 		if err != nil {
 			fmt.Printf("Unable to prepare model directory for %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
 			return
 		}
 
 		stagingDirectory := modelDirectory + ".partial"
 		if err := os.RemoveAll(stagingDirectory); err != nil {
 			fmt.Printf("Unable to clear partial download for %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
 			return
 		}
 		if err := os.MkdirAll(stagingDirectory, 0o755); err != nil {
 			fmt.Printf("Unable to create model directory for %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
 			return
 		}
 
 		download := func(sourceURL string, filename string, baseProgress float64, weight float64) error {
 			return DownloadFile(sourceURL, filepath.Join(stagingDirectory, filename), func(progress float64) {
-				runtime.EventsEmit(a.ctx, "model-download-progress", modelName, baseProgress+(progress*weight))
+				runtime.EventsEmit(a.ctx, "progress", "model-download", modelName, baseProgress+(progress*weight))
 			})
 		}
 
 		if err := download(model.OnnxURL, "model.onnx", 0, 0.95); err != nil {
 			fmt.Printf("Unable to download model %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Network error")
 			_ = os.RemoveAll(stagingDirectory)
 			return
 		}
 		if err := download(model.TokenizerURL, "tokenizer.json", 0.95, 0.05); err != nil {
 			fmt.Printf("Unable to download tokenizer for %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Network error")
 			_ = os.RemoveAll(stagingDirectory)
 			return
 		}
 
 		if err := os.RemoveAll(modelDirectory); err != nil {
 			fmt.Printf("Unable to replace model %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
 			_ = os.RemoveAll(stagingDirectory)
 			return
 		}
 		if err := os.Rename(stagingDirectory, modelDirectory); err != nil {
 			fmt.Printf("Unable to finalize model %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
 			_ = os.RemoveAll(stagingDirectory)
 			return
 		}
@@ -202,7 +209,7 @@ func (a *Models) DownloadModel(modelName string) {
 		writeSaveFile()
 		model.Installed = true
 		model.Path = filepath.Join(modelDirectory, "model.onnx")
-		runtime.EventsEmit(a.ctx, "model-download-completed", modelName)
+		runtime.EventsEmit(a.ctx, "completed", "model-download", modelName)
 	}()
 }
 
@@ -231,11 +238,12 @@ func (a *Models) DeleteModel(modelName string) {
 	}
 
 	go func() {
-		runtime.EventsEmit(a.ctx, "model-delete-started", modelName)
+		runtime.EventsEmit(a.ctx, "started", "model-delete", modelName)
 
 		modelDirectory, err := ModelStorageDirectory(modelName)
 		if err != nil {
 			fmt.Printf("Unable to locate model directory for %q: %v\n", modelName, err)
+			runtime.EventsEmit(a.ctx, "error", "model-delete", modelName, "File not found")
 			return
 		}
 
@@ -249,18 +257,18 @@ func (a *Models) DeleteModel(modelName string) {
 		for {
 			select {
 			case <-ticker.C:
-				runtime.EventsEmit(a.ctx, "model-delete-progress", modelName, 0)
+				runtime.EventsEmit(a.ctx, "progress", "model-delete", modelName, 0)
 			case err := <-deleteDone:
 				if err != nil {
 					fmt.Printf("Unable to delete model %q: %v\n", modelName, err)
+					runtime.EventsEmit(a.ctx, "error", "model-delete", modelName, "Permission denied")
 					return
 				}
 
 				model.Installed = false
 				model.Path = ""
 				writeSaveFile()
-				// runtime.EventsEmit(a.ctx, "model-delete-progress", modelName, 1)
-				runtime.EventsEmit(a.ctx, "model-delete-completed", modelName)
+				runtime.EventsEmit(a.ctx, "completed", "model-delete", modelName)
 				return
 			}
 		}
