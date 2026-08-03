@@ -31,7 +31,7 @@ func LoadTokenizer(tokenizer_path string) (*Tokenizer, error) {
 	return &Tokenizer{Tokenizer: t}, nil
 }
 
-func (t *Tokenizer) Encode(text string) ([]int64, error) {
+func (t *Tokenizer) Encode(text string) ([]int32, error) {
 	encoding, err := t.Tokenizer.EncodeSingle(text, true)
 	if err != nil {
 		return nil, err
@@ -40,15 +40,15 @@ func (t *Tokenizer) Encode(text string) ([]int64, error) {
 	// fmt.Printf("%-10s: %q\n", "Tokens", encoding.Tokens)
 	// fmt.Printf("%-10s: %v\n", "Ids", encoding.Ids)
 
-	ids := make([]int64, len(encoding.Ids))
+	ids := make([]int32, len(encoding.Ids))
 	for i, id := range encoding.Ids {
-		ids[i] = int64(id)
+		ids[i] = int32(id)
 	}
 
 	return ids, nil
 }
 
-func (t *Tokenizer) EncodeBatch(queries []string) ([][]int64, error) {
+func (t *Tokenizer) EncodeBatch(queries []string) ([][]int32, error) {
 	// encodes a batch of queries into token IDs using the tokenizer
 	batchInput := make([]tokenizer.EncodeInput, len(queries))
 	for i, s := range queries {
@@ -60,12 +60,12 @@ func (t *Tokenizer) EncodeBatch(queries []string) ([][]int64, error) {
 		return nil, err
 	}
 
-	// convert encodings to [][]int64
-	batchIds := make([][]int64, len(encodings))
+	// convert encodings to [][]int32
+	batchIds := make([][]int32, len(encodings))
 	for i, encoding := range encodings {
-		ids := make([]int64, len(encoding.Ids))
+		ids := make([]int32, len(encoding.Ids))
 		for j, id := range encoding.Ids {
-			ids[j] = int64(id)
+			ids[j] = int32(id)
 		}
 		batchIds[i] = ids
 	}
@@ -102,7 +102,7 @@ func loadModel(modelName string) (modelData, error) {
 	}, nil
 }
 
-func (m *modelData) Tokenize(text string) ([]int64, error) {
+func (m *modelData) Tokenize(text string) ([]int32, error) {
 	return m.Tokenizer.Encode(text)
 }
 
@@ -156,7 +156,7 @@ func (m *modelData) BatchEmbedQueries(queries []string) ([][]float32, error) {
 
 	batchSize := len(queries)
 	shape := ort.NewShape(int64(batchSize), int64(maxLength))
-	inputIds, attentionMask := batchTokenData(tokens, maxLength, int64(m.Tokenizer.Tokenizer.GetPadding().PadId))
+	inputIds, attentionMask := batchTokenData(tokens, maxLength, int32(m.Tokenizer.Tokenizer.GetPadding().PadId))
 
 	inputs := make([]ort.ArbitraryTensor, len(m.Input))
 	defer destroyTensors(inputs)
@@ -183,9 +183,9 @@ func (m *modelData) BatchEmbedQueries(queries []string) ([][]float32, error) {
 	return outputEmbeddings, nil
 }
 
-func batchTokenData(tokens [][]int64, maxLength int, paddingToken int64) ([]int64, []int64) {
-	inputIds := make([]int64, len(tokens)*maxLength)
-	attentionMask := make([]int64, len(tokens)*maxLength)
+func batchTokenData(tokens [][]int32, maxLength int, paddingToken int32) ([]int32, []int32) {
+	inputIds := make([]int32, len(tokens)*maxLength)
+	attentionMask := make([]int32, len(tokens)*maxLength)
 	for batchIndex, tokenIds := range tokens {
 		start := batchIndex * maxLength
 		copy(inputIds[start:start+maxLength], tokenIds)
@@ -199,14 +199,14 @@ func batchTokenData(tokens [][]int64, maxLength int, paddingToken int64) ([]int6
 	return inputIds, attentionMask
 }
 
-func buildBatchInputTensor(info ort.InputOutputInfo, shape ort.Shape, inputIds, attentionMask []int64) (ort.ArbitraryTensor, error) {
+func buildBatchInputTensor(info ort.InputOutputInfo, shape ort.Shape, inputIds, attentionMask []int32) (ort.ArbitraryTensor, error) {
 	data := inputIds
 	name := strings.ToLower(info.Name)
 	switch {
 	case strings.Contains(name, "mask"):
 		data = attentionMask
 	case strings.Contains(name, "type"):
-		data = make([]int64, len(inputIds))
+		data = make([]int32, len(inputIds))
 	case strings.Contains(name, "position"):
 		data = batchPositionIds(shape, len(inputIds))
 	}
@@ -221,15 +221,15 @@ func buildBatchInputTensor(info ort.InputOutputInfo, shape ort.Shape, inputIds, 
 	}
 }
 
-func batchPositionIds(shape ort.Shape, size int) []int64 {
-	positions := make([]int64, size)
+func batchPositionIds(shape ort.Shape, size int) []int32 {
+	positions := make([]int32, size)
 	if len(shape) < 2 {
 		return positions
 	}
 
 	sequenceLength := int(shape[1])
 	for i := range positions {
-		positions[i] = int64(i % sequenceLength)
+		positions[i] = int32(i % sequenceLength)
 	}
 	return positions
 }
@@ -269,7 +269,7 @@ func destroyTensors(tensors []ort.ArbitraryTensor) {
 	}
 }
 
-func extractBatchEmbeddings(outputs []ort.ArbitraryTensor, batchSize int, attentionMask []int64) ([][]float32, error) {
+func extractBatchEmbeddings(outputs []ort.ArbitraryTensor, batchSize int, attentionMask []int32) ([][]float32, error) {
 	data, shape, err := extractTensorData(outputs)
 	if err != nil {
 		return nil, err
@@ -277,7 +277,7 @@ func extractBatchEmbeddings(outputs []ort.ArbitraryTensor, batchSize int, attent
 	return collapseBatchEmbedding(data, shape, batchSize, attentionMask)
 }
 
-func collapseBatchEmbedding(data []float32, shape ort.Shape, batchSize int, attentionMask []int64) ([][]float32, error) {
+func collapseBatchEmbedding(data []float32, shape ort.Shape, batchSize int, attentionMask []int32) ([][]float32, error) {
 	if batchSize <= 0 || len(shape) == 0 || int(shape[0]) != batchSize {
 		return nil, fmt.Errorf("invalid batch embedding shape: %v", shape)
 	}
@@ -333,7 +333,7 @@ func collapseBatchEmbedding(data []float32, shape ort.Shape, batchSize int, atte
 	return nil, fmt.Errorf("unsupported batch embedding shape: %v", shape)
 }
 
-func buildInputTensor(info ort.InputOutputInfo, tokenIds []int64) (ort.ArbitraryTensor, error) {
+func buildInputTensor(info ort.InputOutputInfo, tokenIds []int32) (ort.ArbitraryTensor, error) {
 	name := strings.ToLower(info.Name)
 	shape := tensorShape(info, tokenIds)
 	tensorSize := int(shape.FlattenedSize())
@@ -352,8 +352,8 @@ func buildInputTensor(info ort.InputOutputInfo, tokenIds []int64) (ort.Arbitrary
 	}
 }
 
-func inputTensorData(name string, tensorSize int, tokenIds []int64) []int64 {
-	data := make([]int64, tensorSize)
+func inputTensorData(name string, tensorSize int, tokenIds []int32) []int32 {
+	data := make([]int32, tensorSize)
 	tokenCount := tensorSize
 	if tokenCount > len(tokenIds) {
 		tokenCount = len(tokenIds)
@@ -366,7 +366,7 @@ func inputTensorData(name string, tensorSize int, tokenIds []int64) []int64 {
 		}
 	case strings.Contains(name, "position"):
 		for i := 0; i < tokenCount; i++ {
-			data[i] = int64(i)
+			data[i] = int32(i)
 		}
 	case !strings.Contains(name, "type"):
 		copy(data, tokenIds[:tokenCount])
@@ -374,7 +374,7 @@ func inputTensorData(name string, tensorSize int, tokenIds []int64) []int64 {
 	return data
 }
 
-func tensorShape(info ort.InputOutputInfo, tokenIds []int64) ort.Shape {
+func tensorShape(info ort.InputOutputInfo, tokenIds []int32) ort.Shape {
 	shape := make(ort.Shape, len(info.Dimensions))
 	for i, dimension := range info.Dimensions {
 		switch {
@@ -434,7 +434,7 @@ func extractTensorData(outputs []ort.ArbitraryTensor) ([]float32, ort.Shape, err
 	return nil, nil, fmt.Errorf("model did not return a tensor output")
 }
 
-func convertToFloat32[T float64 | int64 | int32](data []T) []float32 {
+func convertToFloat32[T float64 | int32 | int64](data []T) []float32 {
 	converted := make([]float32, len(data))
 	for i, value := range data {
 		converted[i] = float32(value)
@@ -442,7 +442,7 @@ func convertToFloat32[T float64 | int64 | int32](data []T) []float32 {
 	return converted
 }
 
-func convertToInt32(data []int64) []int32 {
+func convertToInt32(data []int32) []int32 {
 	converted := make([]int32, len(data))
 	for i, value := range data {
 		converted[i] = int32(value)

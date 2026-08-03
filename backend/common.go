@@ -26,14 +26,14 @@ type Common struct {
 
 func (a *Common) Startup(ctx context.Context) {
 	a.ctx = ctx
-	}
+}
 
 func (a *Common) StartOnnxRuntime() {
 	a.onnxStartup.Do(func() {
 		go func() {
-		if err := mcpserver.OnnxStartup(a); err != nil {
-			fmt.Printf("Error during ONNX Runtime startup: %v\n", err)
-		}
+			if err := mcpserver.OnnxStartup(a); err != nil {
+				fmt.Printf("Error during ONNX Runtime startup: %v\n", err)
+			}
 		}()
 	})
 }
@@ -121,21 +121,21 @@ var modelDownloadClient = &http.Client{Timeout: 10 * time.Minute}
 
 type countingWriter struct {
 	writer  io.Writer
-	written atomic.Int64
+	written atomic.Int32
 }
 
 const progressUpdateInterval = 250 * time.Millisecond
 
 func (w *countingWriter) Write(data []byte) (int, error) {
 	n, err := w.writer.Write(data)
-	w.written.Add(int64(n))
+	w.written.Add(int32(n))
 	return n, err
 }
 
-func DownloadFile(sourceURL string, targetPath string, onProgress func(float64)) error {
+func DownloadFile(sourceURL string, targetPath string, onProgress func(float32)) error {
 	return (&Common{}).DownloadFile(sourceURL, targetPath, onProgress)
 }
-func (m *Common) DownloadFile(sourceURL string, targetPath string, onProgress func(float64)) error {
+func (m *Common) DownloadFile(sourceURL string, targetPath string, onProgress func(float32)) error {
 	request, err := http.NewRequest(http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return fmt.Errorf("create download request: %w", err)
@@ -168,7 +168,7 @@ func (m *Common) DownloadFile(sourceURL string, targetPath string, onProgress fu
 			select {
 			case <-ticker.C:
 				if response.ContentLength > 0 {
-					onProgress(float64(writer.written.Load()) / float64(response.ContentLength))
+					onProgress(float32(writer.written.Load()) / float32(response.ContentLength))
 				}
 			case <-stopProgress:
 				return

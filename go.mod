@@ -3,6 +3,8 @@ module mcp-creator
 go 1.23.0
 
 require (
+	github.com/asg017/sqlite-vec-go-bindings v0.1.6
+	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/sugarme/tokenizer v0.3.0
 	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/yalue/onnxruntime_go v1.8.0

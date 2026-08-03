@@ -199,8 +199,8 @@ func (a *Models) DownloadModel(modelName string) {
 			return
 		}
 
-		download := func(sourceURL string, filename string, baseProgress float64, weight float64) error {
-			return DownloadFile(sourceURL, filepath.Join(stagingDirectory, filename), func(progress float64) {
+		download := func(sourceURL string, filename string, baseProgress float32, weight float32) error {
+			return DownloadFile(sourceURL, filepath.Join(stagingDirectory, filename), func(progress float32) {
 				runtime.EventsEmit(a.ctx, "progress", "model-download", modelName, baseProgress+(progress*weight))
 			})
 		}
