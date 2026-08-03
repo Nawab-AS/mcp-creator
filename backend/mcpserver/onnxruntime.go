@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	ort "github.com/yalue/onnxruntime_go"
 )
@@ -17,6 +18,7 @@ type CommonFuncs interface {
 	FsExists(path string, isDir bool) (bool, error)
 	DownloadFile(sourceURL string, targetPath string, onProgress func(float64)) error
 	EmitEvent(eventName string, data ...interface{})
+	ModelStorageDirectory(modelName string) (string, error)
 }
 
 func OnnxStartup(commonFuncs1 CommonFuncs) error {
@@ -40,11 +42,13 @@ func OnnxStartup(commonFuncs1 CommonFuncs) error {
 		fmt.Println("Error checking if onnxruntime binary exists:", err)
 		return err
 	} else if !fsExists {
+		fmt.Println("onnxruntime binary does not exist, downloading...")
 		if err := downloadOnnxRuntime(onnxBinaryPath); err != nil {
 			return err
 		}
 	}
 
+	start := time.Now().UnixNano()
 	ort.SetSharedLibraryPath(onnxBinaryPath)
 	e := ort.InitializeEnvironment()
 	if e != nil {
@@ -52,6 +56,37 @@ func OnnxStartup(commonFuncs1 CommonFuncs) error {
 		return e
 	}
 
+	envLoaded := time.Now().UnixNano()
+	model, err := loadModel("MiniLM-L3-v2 (quantized)")
+	if err != nil {
+		fmt.Println("Error loading model:", err)
+		return err
+	}
+
+	fmt.Println("Model loaded successfully")
+	queries := []string{
+		"This is a test to see if the embedding is working or not",
+		"Another test to see if the embedding is working or not",
+		"Yet another test to see if the embedding is working or not",
+	}
+	fmt.Printf("Embedding: '%s'\n", queries)
+
+	modelLoaded := time.Now().UnixNano()
+	embeddings, err := model.BatchEmbedQueries(queries)
+	if err != nil {
+		fmt.Println("Error embedding query:", err)
+		return err
+	}
+
+	for i, embedding := range embeddings {
+		fmt.Printf("Embedding for query %d: len=%d\n", i, len(embedding))
+	}
+	end := time.Now().UnixNano()
+
+	fmt.Printf("Time taken to load environment: %d ms\n", (envLoaded-start)/1e6)
+	fmt.Printf("Time taken to load model: %d ms\n", (modelLoaded-envLoaded)/1e6)
+	fmt.Printf("Time taken to embed query: %d ms\n", (end-modelLoaded)/1e6)
+	fmt.Printf("Total time taken: %d ms\n", (end-start)/1e6)
 	return nil
 }
 

@@ -47,6 +47,8 @@ func (a *Models) Startup(ctx context.Context) {
 		}
 		models = loadedModels
 	}
+
+	refreshInstalledModelState()
 }
 
 var FS_MUTEX sync.Mutex
@@ -61,7 +63,10 @@ func writeSaveFile() error {
 		return err
 	}
 
-	modelsFilePath := filepath.Join(configDir, "models.json")
+	return writeModelsFile(models, filepath.Join(configDir, "models.json"))
+}
+
+func writeModelsFile(modelsToWrite []Model, modelsFilePath string) error {
 	file, err := os.Create(modelsFilePath)
 	if err != nil {
 		fmt.Println("Error creating models.json:", err)
@@ -69,12 +74,32 @@ func writeSaveFile() error {
 	}
 	defer file.Close()
 
-	err = json.NewEncoder(file).Encode(models)
+	err = json.NewEncoder(file).Encode(modelsToWrite)
 	if err != nil {
 		fmt.Println("Error writing to models.json:", err)
 		return err
 	}
 	return nil
+}
+
+func refreshInstalledModelState() {
+	for i := range models {
+		modelDirectory, err := ModelStorageDirectory(models[i].Name)
+		if err != nil {
+			continue
+		}
+
+		modelFilePath := filepath.Join(modelDirectory, "model.onnx")
+		if _, err := os.Stat(modelFilePath); err == nil {
+			models[i].Installed = true
+			models[i].Path = modelFilePath
+			continue
+		}
+
+		if !models[i].Installed {
+			models[i].Path = ""
+		}
+	}
 }
 
 type Model struct {
@@ -206,9 +231,11 @@ func (a *Models) DownloadModel(modelName string) {
 			return
 		}
 
-		writeSaveFile()
 		model.Installed = true
 		model.Path = filepath.Join(modelDirectory, "model.onnx")
+		if err := writeSaveFile(); err != nil {
+			fmt.Printf("Unable to save model state for %q: %v\n", modelName, err)
+		}
 		runtime.EventsEmit(a.ctx, "completed", "model-download", modelName)
 	}()
 }
