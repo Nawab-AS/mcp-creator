@@ -215,7 +215,7 @@ func buildBatchInputTensor(info ort.InputOutputInfo, shape ort.Shape, inputIds, 
 	case ort.TensorElementDataTypeInt64:
 		return ort.NewTensor(shape, data)
 	case ort.TensorElementDataTypeInt32:
-		return ort.NewTensor(shape, convertToInt32(data))
+		return ort.NewTensor(shape, data)
 	default:
 		return nil, fmt.Errorf("unsupported input tensor type %s for %s", info.DataType.String(), info.Name)
 	}
@@ -246,8 +246,21 @@ func (m *modelData) run(inputs []ort.ArbitraryTensor) ([]ort.ArbitraryTensor, er
 	}
 	defer session.Destroy()
 
+	inputs64 := make([]ort.ArbitraryTensor, len(inputs))
+	for i, input := range inputs {
+		switch tensor := input.(type) {
+		case *ort.Tensor[int32]:
+			inputs64[i], err = ort.NewTensor(tensor.GetShape(), convertToInt64(tensor.GetData()))
+			if err != nil {
+				return nil, err
+			}
+		default:
+			inputs64[i] = input
+		}
+	}
+
 	outputs := make([]ort.ArbitraryTensor, len(m.Output))
-	if err := session.Run(inputs, outputs); err != nil {
+	if err := session.Run(inputs64, outputs); err != nil {
 		return nil, err
 	}
 	return outputs, nil
@@ -346,7 +359,7 @@ func buildInputTensor(info ort.InputOutputInfo, tokenIds []int32) (ort.Arbitrary
 	case ort.TensorElementDataTypeInt64:
 		return ort.NewTensor(shape, data)
 	case ort.TensorElementDataTypeInt32:
-		return ort.NewTensor(shape, convertToInt32(data))
+		return ort.NewTensor(shape, data)
 	default:
 		return nil, fmt.Errorf("unsupported input tensor type %s for %s", info.DataType.String(), info.Name)
 	}
@@ -442,10 +455,18 @@ func convertToFloat32[T float64 | int32 | int64](data []T) []float32 {
 	return converted
 }
 
-func convertToInt32(data []int32) []int32 {
+func convertToInt32(data []int64) []int32 {
 	converted := make([]int32, len(data))
 	for i, value := range data {
 		converted[i] = int32(value)
+	}
+	return converted
+}
+
+func convertToInt64(data []int32) []int64 {
+	converted := make([]int64, len(data))
+	for i, value := range data {
+		converted[i] = int64(value)
 	}
 	return converted
 }
