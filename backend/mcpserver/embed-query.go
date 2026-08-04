@@ -12,7 +12,8 @@ import (
 )
 
 type Tokenizer struct {
-	Tokenizer *tokenizer.Tokenizer
+	Tokenizer          *tokenizer.Tokenizer
+	MaxSequenceLength int
 }
 
 type modelData struct {
@@ -28,7 +29,15 @@ func LoadTokenizer(tokenizer_path string) (*Tokenizer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Tokenizer{Tokenizer: t}, nil
+	maxSequenceLength := 0
+	if truncation := t.GetTruncation(); truncation != nil {
+		maxSequenceLength = truncation.MaxLength
+	}
+	t.WithTruncation(nil)
+	return &Tokenizer{
+		Tokenizer:          t,
+		MaxSequenceLength: maxSequenceLength,
+	}, nil
 }
 
 func (t *Tokenizer) Encode(text string) ([]int32, error) {
@@ -46,6 +55,14 @@ func (t *Tokenizer) Encode(text string) ([]int32, error) {
 	}
 
 	return ids, nil
+}
+
+func (t *Tokenizer) Decode(ids []int32) string {
+	decoded := make([]int, len(ids))
+	for index, id := range ids {
+		decoded[index] = int(id)
+	}
+	return t.Tokenizer.Decode(decoded, true)
 }
 
 func (t *Tokenizer) EncodeBatch(queries []string) ([][]int32, error) {
@@ -143,9 +160,12 @@ func (m *modelData) BatchEmbedQueries(queries []string) ([][]float32, error) {
 	if len(tokens) != len(queries) {
 		return nil, fmt.Errorf("tokenizer returned %d encodings for %d queries", len(tokens), len(queries))
 	}
+	return m.BatchEmbedQueriesFromTokens(tokens)
+}
 
+func (m *modelData) BatchEmbedQueriesFromTokens(queryTokens [][]int32) ([][]float32, error) {
 	maxLength := 0
-	for _, query := range tokens {
+	for _, query := range queryTokens {
 		if len(query) > maxLength {
 			maxLength = len(query)
 		}
@@ -154,9 +174,9 @@ func (m *modelData) BatchEmbedQueries(queries []string) ([][]float32, error) {
 		return nil, fmt.Errorf("tokenizer returned empty encodings")
 	}
 
-	batchSize := len(queries)
+	batchSize := len(queryTokens)
 	shape := ort.NewShape(int64(batchSize), int64(maxLength))
-	inputIds, attentionMask := batchTokenData(tokens, maxLength, int32(m.Tokenizer.Tokenizer.GetPadding().PadId))
+	inputIds, attentionMask := batchTokenData(queryTokens, maxLength, int32(m.Tokenizer.Tokenizer.GetPadding().PadId))
 
 	inputs := make([]ort.ArbitraryTensor, len(m.Input))
 	defer destroyTensors(inputs)
@@ -189,8 +209,10 @@ func batchTokenData(tokens [][]int32, maxLength int, paddingToken int32) ([]int3
 	for batchIndex, tokenIds := range tokens {
 		start := batchIndex * maxLength
 		copy(inputIds[start:start+maxLength], tokenIds)
-		for tokenIndex := range tokenIds {
-			attentionMask[start+tokenIndex] = 1
+		for tokenIndex, tokenID := range tokenIds {
+			if tokenID != paddingToken {
+				attentionMask[start+tokenIndex] = 1
+			}
 		}
 		for tokenIndex := len(tokenIds); tokenIndex < maxLength; tokenIndex++ {
 			inputIds[start+tokenIndex] = paddingToken
@@ -272,6 +294,50 @@ func tensorNames(infos []ort.InputOutputInfo) []string {
 		names[i] = info.Name
 	}
 	return names
+}
+
+type ModelDimensions struct {
+	input  int
+	output int
+}
+
+func (m *modelData) VectorDimensions() (ModelDimensions, error) {
+	outputDimension, err := fixedDimension(m.Output)
+	if err != nil {
+		return ModelDimensions{}, fmt.Errorf("model has no fixed output dimension: %w", err)
+	}
+
+	inputDimension, err := fixedDimension(m.Input)
+	if err != nil {
+		inputDimension = m.Tokenizer.MaxSequenceLength
+	}
+	if inputDimension <= 0 {
+		return ModelDimensions{}, fmt.Errorf("model has no fixed input sequence length and tokenizer provides none")
+	}
+
+	return ModelDimensions{
+		input:  inputDimension,
+		output: outputDimension,
+	}, nil
+}
+
+func fixedDimension(infos []ort.InputOutputInfo) (int, error) {
+	if len(infos) == 0 {
+		return 0, fmt.Errorf("no tensor infos")
+	}
+
+	dimensions := infos[0].Dimensions
+	if len(dimensions) == 0 {
+		return 0, fmt.Errorf("no dimensions")
+	}
+
+	for index := len(dimensions) - 1; index >= 0; index-- {
+		if dimensions[index] > 1 {
+			return int(dimensions[index]), nil
+		}
+	}
+
+	return 0, fmt.Errorf("no fixed dimensions in %v", dimensions)
 }
 
 func destroyTensors(tensors []ort.ArbitraryTensor) {

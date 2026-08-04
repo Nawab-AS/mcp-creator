@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"math"
 	"os"
-	"path/filepath"
 	"sync"
 
 	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
@@ -32,10 +31,6 @@ func (vdb *VectorDB) CreateVectorTable(vectorDimension int) error {
 	}
 
 	createTableSQL := fmt.Sprintf(`
-	CREATE VIRTUAL TABLE vectors USING vec0(
-		id INTEGER PRIMARY KEY REFERENCES documents(id),
-		embedding float[%d]
-	);
 
 	CREATE TABLE IF NOT EXISTS documents (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +38,24 @@ func (vdb *VectorDB) CreateVectorTable(vectorDimension int) error {
 		filename TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE VIRTUAL TABLE vectors USING vec0(
+		id INTEGER PRIMARY KEY REFERENCES documents(id),
+		embedding float[%d]
+	);
+
+	-- cascades to delete vectors when its referencing document is deleted
+	CREATE TRIGGER IF NOT EXISTS cascade_delete_vectors
+	AFTER DELETE ON documents
+	BEGIN
+		DELETE FROM vectors WHERE id = OLD.id;
+	END;
+
+	
+	CREATE TABLE IF NOT EXISTS metadata (
+		key TEXT PRIMARY KEY NOT NULL,
+		value TEXT
+	)
 	`, vectorDimension)
 	_, err := vdb.Exec(createTableSQL)
 	if err != nil {
@@ -52,83 +65,57 @@ func (vdb *VectorDB) CreateVectorTable(vectorDimension int) error {
 	return nil
 }
 
-const vectorDatabaseFilename = "vectors.db"
-
 var registerSQLiteVec sync.Once
 
 // creates a fresh empty vector database
-func NewVectorDB(model *modelData) (*VectorDB, error) {
-	dbPath, err := vectorDatabasePath(model)
-	if err != nil {
-		return nil, err
-	}
-	vectorDimension, err := modelVectorDimension(model)
-	if err != nil {
-		return nil, err
+func NewVectorDB(dbPath string, vectorDimensions int) (*VectorDB, error) {
+	if exists, err := common.FsExists(dbPath, false); err != nil {
+		return nil, fmt.Errorf("error checking if database exists: %w", err)
+	} else if exists {
+		return (&VectorDB{}).LoadVectorDB(dbPath)
 	}
 
+	return (&VectorDB{}).CreateVectorDB(dbPath, vectorDimensions)
+}
+
+func (vdb *VectorDB) CreateVectorDB(dbPath string, vectorDimensions int) (*VectorDB, error) {
+	if dbPath == "" {
+		return nil, fmt.Errorf("database path is required")
+	}
+	if vectorDimensions <= 0 {
+		return nil, fmt.Errorf("vector dimension must be positive")
+	}
+
+	// Remove existing database files if they exist
 	for _, path := range []string{dbPath, dbPath + "-shm", dbPath + "-wal"} {
 		if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("error removing existing vector database: %w", err)
 		}
 	}
 
-	vdb, err := openVectorDB(dbPath)
+	new_vdb, err := vdb.openVectorDB(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening vector database: %w", err)
 	}
 
-	if err := vdb.CreateVectorTable(vectorDimension); err != nil {
-		vdb.Close()
+	if err := new_vdb.CreateVectorTable(vectorDimensions); err != nil {
+		new_vdb.Close()
 		return nil, fmt.Errorf("error creating vector table: %w", err)
 	}
 
-	return vdb, nil
+	return new_vdb, nil
 }
 
 // opens the existing vector database
-func LoadVectorDB(model *modelData) (*VectorDB, error) {
-	dbPath, err := vectorDatabasePath(model)
-	if err != nil {
-		return nil, err
-	}
+func (vdb *VectorDB) LoadVectorDB(dbPath string) (*VectorDB, error) {
 	if _, err := os.Stat(dbPath); err != nil {
 		return nil, fmt.Errorf("error checking vector database: %w", err)
 	}
 
-	return openVectorDB(dbPath)
+	return vdb.openVectorDB(dbPath)
 }
 
-func vectorDatabasePath(model *modelData) (string, error) {
-	if model == nil {
-		return "", fmt.Errorf("model is required")
-	}
-	if model.ModelPath == "" {
-		return "", fmt.Errorf("model path is required")
-	}
-
-	return filepath.Join(filepath.Dir(model.ModelPath), vectorDatabaseFilename), nil
-}
-
-func modelVectorDimension(model *modelData) (int, error) {
-	if model == nil {
-		return 0, fmt.Errorf("model is required")
-	}
-	if len(model.Output) == 0 {
-		return 0, fmt.Errorf("model has no outputs")
-	}
-
-	dimensions := model.Output[0].Dimensions
-	for index := len(dimensions) - 1; index >= 0; index-- {
-		if dimensions[index] > 0 {
-			return int(dimensions[index]), nil
-		}
-	}
-
-	return 0, fmt.Errorf("model output has no fixed vector dimension")
-}
-
-func openVectorDB(dbPath string) (*VectorDB, error) {
+func (vdb *VectorDB) openVectorDB(dbPath string) (*VectorDB, error) {
 	// Auto registers sqlite-vec with every SQLite connection opened by this process.
 	registerSQLiteVec.Do(sqlite_vec.Auto)
 	db, err := sql.Open("sqlite3", dbPath)
@@ -155,7 +142,15 @@ func (vdb *VectorDB) InsertVector(data vectorDataRow) error {
 	}
 	defer tx.Rollback() // fallback on error, canceled by tx.Commit()
 
-	normalizedVector, err := normalizeVector(data.Vector)
+	if err := vdb.insertVector(tx, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (vdb *VectorDB) insertVector(tx *sql.Tx, data vectorDataRow) error {
+	normalizedVector, err := vdb.normalizeVector(data.Vector)
 	if err != nil {
 		return fmt.Errorf("normalize vector: %w", err)
 	}
@@ -180,7 +175,7 @@ func (vdb *VectorDB) InsertVector(data vectorDataRow) error {
 		return err
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (vdb *VectorDB) DeleteVector(chunkID int32) error {
@@ -208,7 +203,7 @@ func (vdb *VectorDB) HybridSearch(queryVector []float32, topK int) ([]vectorData
 		return nil, fmt.Errorf("top K must be positive")
 	}
 
-	normalizedQuery, err := normalizeVector(queryVector)
+	normalizedQuery, err := vdb.normalizeVector(queryVector)
 	if err != nil {
 		return nil, fmt.Errorf("normalize query vector: %w", err)
 	}
@@ -251,7 +246,7 @@ func (vdb *VectorDB) WriteToDisk() error {
 	return nil
 }
 
-func normalizeVector(vector []float32) ([]float32, error) {
+func (vdb *VectorDB) normalizeVector(vector []float32) ([]float32, error) {
 	var sumOfSquares float32
 	for _, value := range vector {
 		sumOfSquares += float32(value) * float32(value)

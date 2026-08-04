@@ -100,7 +100,6 @@ func (m *Common) GetConfigPath() (string, error) {
 func ModelStorageDirectory(modelName string) (string, error) {
 	return (&Common{}).ModelStorageDirectory(modelName)
 }
-
 func (m *Common) ModelStorageDirectory(modelName string) (string, error) {
 	configDirectory, err := m.GetConfigPath()
 	if err != nil {
@@ -114,6 +113,24 @@ func (m *Common) ModelStorageDirectory(modelName string) (string, error) {
 
 	nameHash := sha256.Sum256([]byte(modelName))
 	return filepath.Join(configDirectory, "models", fmt.Sprintf("%x", nameHash[:8])), nil
+}
+
+func ProjectDBPath(projectName string) (string, string, error) {
+	return (&Common{}).ProjectDBPath(projectName)
+}
+func (m *Common) ProjectDBPath(projectName string) (string, string, error) {
+	configDirectory, err := m.GetConfigPath()
+	if err != nil {
+		return "", "", fmt.Errorf("get user config directory: %w", err)
+	}
+
+	err = os.MkdirAll(filepath.Join(configDirectory, "projects"), 0755)
+	if err != nil {
+		return "", "", fmt.Errorf("could not create projects folder: %w", err)
+	}
+
+	nameHash := sha256.Sum256([]byte(projectName))
+	return filepath.Join(configDirectory, "projects"), fmt.Sprintf("%x.db", nameHash[:8]), nil
 }
 
 // Download file from source URL

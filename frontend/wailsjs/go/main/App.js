@@ -46,6 +46,10 @@ export function ModifyProject(arg1, arg2, arg3) {
   return window['go']['main']['App']['ModifyProject'](arg1, arg2, arg3);
 }
 
+export function ProjectDBPath(arg1) {
+  return window['go']['main']['App']['ProjectDBPath'](arg1);
+}
+
 export function SelectDirDialog(arg1) {
   return window['go']['main']['App']['SelectDirDialog'](arg1);
 }

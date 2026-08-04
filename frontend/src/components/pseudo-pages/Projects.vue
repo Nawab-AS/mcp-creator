@@ -12,7 +12,7 @@ onMounted(async () => await refreshProjects(false))
 
 async function refreshProjects(soft=true) {
     projects.value = await GetProjects()
-    models.value = await GetModels().then(models => models.map(m => m.name))
+    models.value = await GetModels().then(models => models.filter(m => m.installed).map(m => m.name))
     if (soft) return
     projects.value.sort((a, b) => {
         if (a.star && !b.star) return -1

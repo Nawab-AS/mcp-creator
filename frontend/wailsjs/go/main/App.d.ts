@@ -24,6 +24,8 @@ export function ModelStorageDirectory(arg1:string):Promise<string>;
 
 export function ModifyProject(arg1:string,arg2:string,arg3:any):Promise<backend.Response>;
 
+export function ProjectDBPath(arg1:string):Promise<string>;
+
 export function SelectDirDialog(arg1:string):Promise<string>;
 
 export function StartOnnxRuntime():Promise<void>;
