@@ -67,13 +67,16 @@ watch(
     () => settingsModal.value.open,
     (open) => {
         if (!open) {
-            settingsModal.value = {
-                open: false,
-                initialName: '',
-                type: 'Modify',
-                error: '',
-                project: null,
-            }
+            // allow the SideModal component to fully unmount first (avoid blank modal)
+            setTimeout(() => {
+                settingsModal.value = {
+                    open: false,
+                    initialName: '',
+                    type: 'Modify',
+                    error: '',
+                    project: null,
+                }
+            }, 200)
         }
     },
 )
