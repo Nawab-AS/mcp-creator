@@ -10,12 +10,14 @@ import (
 	"mcp-creator/backend/mcpserver"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	// "fmt"
 	rt "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -43,6 +45,63 @@ func (a *Common) StartBackend() {
 
 func (a *Common) CopyToClipboard(text string) {
 	rt.ClipboardSetText(a.ctx, text)
+}
+
+var uninstall bool
+
+func (a *Common) Uninstall() {
+	uninstall = true
+	for i := range projects {
+		project := &projects[i]
+		DeleteProject(project.Name)
+	}
+
+	configPath, err := GetConfigPath()
+	if err != nil {
+		fmt.Printf("Error getting config path: %v\n", err)
+		return
+	}
+
+	err = os.RemoveAll(configPath)
+	if err != nil {
+		fmt.Printf("Error removing config directory: %v\n", err)
+		return
+	}
+
+	rt.Quit(a.ctx)
+}
+
+func (a *Common) BeforeClose(ctx context.Context) (prevent bool) {
+	if uninstall {
+		return false
+	}
+	fmt.Println("Stopped")
+	return true
+}
+
+func (a *Common) OpenStorageDir() {
+	configPath, err := GetConfigPath()
+	if err != nil {
+		fmt.Printf("Error getting config path: %v\n", err)
+		return
+	}
+
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", configPath)
+	case "windows":
+		// Explorer requires backslashes for local paths on Windows
+		configPath = strings.ReplaceAll(configPath, "/", "\\")
+		cmd = exec.Command("explorer", configPath)
+	case "linux":
+		cmd = exec.Command("xdg-open", configPath)
+	default:
+		cmd = exec.Command("xdg-open", configPath)
+	}
+
+	cmd.Start()
 }
 
 func (a *Common) EmitEvent(eventName string, data ...interface{}) {

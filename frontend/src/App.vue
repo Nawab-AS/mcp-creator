@@ -1,146 +1,156 @@
 <script lang="ts" setup>
 import { ref } from "vue";
-import Initials from "./components/Initials.vue";
+// import Initials from "./components/Initials.vue";
 import Home from "./components/pseudo-pages/Home.vue";
+import Settings from "./components/pseudo-pages/Settings.vue";
 import Projects from "./components/pseudo-pages/Projects.vue";
 import Models from "./components/pseudo-pages/Models.vue";
 import Prebuilt from "./components/pseudo-pages/Prebuilt.vue";
 import ProgressUpdates from "./components/ProgressUpdates.vue";
 
 const pages = {
-  "home": Home,
-  "projects": Projects,
-  "models": Models,
-  // "prebuilt": Prebuilt // TODO: add prebuilt page
+    "home": Home,
+    "projects": Projects,
+    "models": Models,
+    // "prebuilt": Prebuilt // TODO
 }
 
-const name = ref("Hi S") // Initials: HS
+// const name = ref("Hi S") // Initials: HS
 const page = ref("home")
 </script>
 
 <template>
-  <div id="app">
-    <div id="sidebar">
-      <div id="greeting">
-        <Initials :Initials="name.split(' ').map(s => s[0]).join('')" />
-        <img src="./assets/images/settings.svg" alt="settings button">
-      </div>
-      <hr>
-      <div id="data">
-        <ul id="menu">
-          <li v-for="(_, itemName) in pages" :key="itemName" @click="page = itemName" :class="{ active: page === itemName }">
-            <p>{{ itemName.charAt(0).toUpperCase() + itemName.slice(1) }}</p>
-          </li>
-  
-        </ul>
-        <ProgressUpdates />
-      </div>
-    </div>
-    <div id="content">
-      <Home v-if="page === 'home'" />
-      <Projects v-if="page === 'projects'" />
-      <Models v-if="page === 'models'" />
-      <Prebuilt v-if="page === 'prebuilt'" />
-    </div>
-  </div>
+    <div id="app">
+        <div id="sidebar">
+            <div id="greeting">
+                <!-- <Initials :Initials="name.split(' ').map(s => s[0]).join('')" /> -->
+                <h3>MCP-Creator</h3>
+                <img src="./assets/images/settings.svg" alt="settings button" @click="page = 'settings'">
+            </div>
+            <hr>
+            <div id="data">
+                <ul id="menu">
+                    <li v-for="(_, itemName) in pages" :key="itemName" @click="page = itemName"
+                        :class="{ active: page === itemName }">
+                        <p>{{ itemName.charAt(0).toUpperCase() + itemName.slice(1) }}</p>
+                    </li>
 
-  <div id="modals">
-    <!-- This div is accessed via `Teleport` -->
-  </div>
+                </ul>
+                <ProgressUpdates />
+            </div>
+        </div>
+        <div id="content">
+            <Home v-if="page === 'home'" />
+            <Projects v-if="page === 'projects'" />
+            <Models v-if="page === 'models'" />
+            <Prebuilt v-if="page === 'prebuilt'" />
+            <Settings v-if="page === 'settings'" />
+        </div>
+    </div>
+
+    <div id="modals">
+        <!-- This div is accessed via `Teleport` -->
+    </div>
 </template>
 
 <style scoped>
 #app {
-  display: flex;
-  min-height: 100vh;
-  color: #eee;
+    display: flex;
+    min-height: 100vh;
+    color: #eee;
 }
 
 #sidebar {
-  height: 100vh;
-  width: 200px;
-  min-width: 200px;
-  
-  background-color: #242424;
-  border-right: 1px solid #444;
+    height: 100vh;
+    width: 200px;
+    min-width: 200px;
+
+    background-color: #242424;
+    border-right: 1px solid #444;
 }
 
 #greeting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 15px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 10px;
 }
 
 #greeting>img {
-  width: 30px;
-  height: 30px;
-  transition: all 0.2s ease-in-out;
-  transition-delay: 0.1s;
-  scale: 1.25;
+    width: 30px;
+    height: 30px;
+    transition: all 0.2s ease-in-out;
+    transition-delay: 0.1s;
+    scale: 1.25;
 }
 
 #greeting>img:hover {
-  cursor: pointer;
-  filter: brightness(1.1);
-  scale: 1.35;
+    cursor: pointer;
+    filter: brightness(1.1);
+    scale: 1.35;
+}
+
+#greeting>h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
 }
 
 hr {
-  border: 0;
-  height: 2px;
-  background-color: #444;
-  margin: 0;
+    border: 0;
+    height: 2px;
+    background-color: #444;
+    margin: 0;
 }
 
 #data {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 70px);
-  justify-content: space-between;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 70px);
+    justify-content: space-between;
 }
 
 #menu {
-  list-style: none;
-  max-height: min-content;
-  padding: 0;
-  margin: 0;
-  height: calc(100vh - 100px);
-  gap: 10px;
+    list-style: none;
+    max-height: min-content;
+    padding: 0;
+    margin: 0;
+    height: calc(100vh - 100px);
+    gap: 10px;
 }
 
 #menu>li {
-  margin: 10px 10px;
-  transition: all 0.3s ease-in-out;
-  text-align: center;
-  border-radius: 10px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+    margin: 10px 10px;
+    transition: all 0.3s ease-in-out;
+    text-align: center;
+    border-radius: 10px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #menu>li:hover {
-  cursor: pointer;
-  background-color: #333;
+    cursor: pointer;
+    background-color: #333;
 }
 
 #menu>li.active {
-  background-color: #3e3e3e;
+    background-color: #3e3e3e;
 }
 
 #content {
-  flex: 1;
-  min-width: 0;
-  padding: 0px;
-}
-#content>div {
-  min-width: 0;
-  height: 100%;
-  overflow: auto;
-  overflow-x: hidden;
-  box-sizing: border-box;
-  background-color: #1c1c1c;
+    flex: 1;
+    min-width: 0;
+    padding: 0px;
 }
 
+#content>div {
+    min-width: 0;
+    height: 100%;
+    overflow: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    background-color: #1c1c1c;
+}
 </style>

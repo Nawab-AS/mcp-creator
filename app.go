@@ -31,3 +31,7 @@ func (a *App) startup(ctx context.Context) {
 	a.Models.Startup(ctx)
 	a.Common.Startup(ctx)
 }
+
+func (a *App) beforeClose(ctx context.Context) bool {
+	return a.Common.BeforeClose(ctx)
+}

@@ -128,6 +128,27 @@ func (a *Projects) ReindexProject(projectName string) error {
 	return server.IndexDir(project.Path, true)
 }
 
+// StopIndexing cancels an active index operation and restores the database to its pre-index state.
+func (a *Projects) StopIndexing(projectName string) error {
+	server, exists := servers[projectName]
+	if !exists {
+		return fmt.Errorf("server for project %s not found", projectName)
+	}
+
+	if err := editStatus(projectName, StatusStopping); err != nil {
+		return err
+	}
+	server.Paused = true
+	defer func() {
+		server.Paused = false
+		if err := editStatus(projectName, StatusOnline); err != nil {
+			fmt.Printf("Error restoring status for project %s: %v\n", projectName, err)
+		}
+	}()
+
+	return server.StopIndexing()
+}
+
 var FS_MUTEX_projects sync.Mutex
 
 func writeSaveFile_projects() error {
@@ -347,6 +368,7 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 		fmt.Printf("Error starting server for project %s: %v\n", name, err)
 		return Response{500, fmt.Sprintf("Error starting server for project %s: %v", name, err)}
 	}
+	servers[name] = server
 	a.ReindexProject(name)
 	fmt.Printf("Created Project `%s` at path `%s` with model `%s` and port `%d`\n", name, path, model, port)
 
@@ -381,6 +403,10 @@ func (a *Projects) GetAvailablePort() int {
 		}
 	}
 	return 0 // If you actually get this, Good luck! You'll need it
+}
+
+func DeleteProject(projectName string) Response {
+	return (&Projects{}).DeleteProject(projectName)
 }
 
 func (a *Projects) DeleteProject(projectName string) Response {

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,6 +29,9 @@ type Server struct {
 	name            string
 	dimensions      ModelDimensions
 	Paused          bool
+	indexMu         sync.Mutex
+	indexCancel     context.CancelFunc
+	indexDone       chan struct{}
 }
 
 type searchInput struct {
@@ -87,6 +91,8 @@ func (s *Server) Close() error {
 	if err := s.VectorDB.Close(); err != nil {
 		return fmt.Errorf("error closing vector database: %w", err)
 	}
+	s.StopIndexing()
+	s.StopServer()
 	return nil
 }
 
@@ -140,7 +146,7 @@ func textContent(filePath string) (string, error) {
 	}
 }
 
-func (s *Server) fileModified(filePath string) (bool, int64, error) {
+func (s *Server) fileModified(tx *sql.Tx, filePath string) (bool, int64, error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return false, 0, fmt.Errorf("error getting file info: %w", err)
@@ -148,12 +154,6 @@ func (s *Server) fileModified(filePath string) (bool, int64, error) {
 	modTime := fileInfo.ModTime().UnixNano()
 
 	// get last modified time from database
-	tx, err := s.VectorDB.Begin()
-	if err != nil {
-		return false, 0, fmt.Errorf("error starting transaction: %w", err)
-	}
-	defer tx.Rollback() // fallback on error, canceled by tx.Commit()
-
 	metadataKey := fmt.Sprintf("last_mod_%s", common.Hash(filePath))
 	var lastMod int64
 	err = tx.QueryRow(`SELECT value FROM metadata WHERE key = ?;`, metadataKey).Scan(&lastMod)
@@ -165,7 +165,7 @@ func (s *Server) fileModified(filePath string) (bool, int64, error) {
 
 const addFileProgressUpdateInterval = 1000 * time.Millisecond
 
-func (s *Server) addFile(filePath string, onProgress func(float32)) error {
+func (s *Server) addFile(ctx context.Context, tx *sql.Tx, filePath string, onProgress func(float32)) error {
 	if onProgress == nil {
 		onProgress = func(float32) {}
 	}
@@ -202,7 +202,11 @@ func (s *Server) addFile(filePath string, onProgress func(float32)) error {
 		<-progressDone
 	}()
 
-	modified, modTime, err := s.fileModified(filePath)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	modified, modTime, err := s.fileModified(tx, filePath)
 	if err != nil {
 		return fmt.Errorf("error checking if file is modified: %w", err)
 	} else if !modified {
@@ -221,13 +225,6 @@ func (s *Server) addFile(filePath string, onProgress func(float32)) error {
 	} else {
 		text = "<START OF FILE>\n" + text + "\n<END OF FILE>"
 	}
-
-	// delete any existing vectors for this file
-	tx, err := s.VectorDB.Begin()
-	if err != nil {
-		return fmt.Errorf("error starting transaction: %w", err)
-	}
-	defer tx.Rollback()
 
 	setProgress(0.15)
 	if err := s.removeFile(tx, filePath); err != nil {
@@ -271,6 +268,9 @@ func (s *Server) addFile(filePath string, onProgress func(float32)) error {
 	if err != nil {
 		return fmt.Errorf("error generating embeddings: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if len(embeddings) != len(rows) {
 		return fmt.Errorf("generated %d embeddings for %d chunks", len(embeddings), len(rows))
 	}
@@ -278,6 +278,9 @@ func (s *Server) addFile(filePath string, onProgress func(float32)) error {
 	// fmt.Printf("Generated embeddings for %d rows. %d dimensions\n", len(embeddings), len(embeddings[0]))
 
 	for i, embedding := range embeddings {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if len(embeddings) > 0 {
 			setProgress(0.70 + (0.25 * float32(i+1) / float32(len(embeddings))))
 		}
@@ -294,10 +297,6 @@ func (s *Server) addFile(filePath string, onProgress func(float32)) error {
 	metadataKey := fmt.Sprintf("last_mod_%s", common.Hash(filePath))
 	if _, err := tx.Exec(`INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?);`, metadataKey, modTime); err != nil {
 		return fmt.Errorf("error saving file metadata: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("error committing document deletion: %w", err)
 	}
 	setProgress(1)
 	onProgress(1)
@@ -335,12 +334,60 @@ func (s *Server) removeFile(tx *sql.Tx, filePath string) error {
 	return nil
 }
 
+func (s *Server) beginIndexing() (context.Context, error) {
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+
+	if s.indexCancel != nil {
+		return nil, fmt.Errorf("indexing is already in progress")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.indexCancel = cancel
+	s.indexDone = make(chan struct{})
+	return ctx, nil
+}
+
+func (s *Server) finishIndexing() {
+	s.indexMu.Lock()
+	defer s.indexMu.Unlock()
+
+	close(s.indexDone)
+	s.indexCancel = nil
+	s.indexDone = nil
+}
+
+// StopIndexing cancels the active directory index and waits for its transaction to roll back.
+func (s *Server) StopIndexing() error {
+	s.indexMu.Lock()
+	if s.indexCancel == nil {
+		s.indexMu.Unlock()
+		return fmt.Errorf("no indexing operation is in progress")
+	}
+	cancel := s.indexCancel
+	done := s.indexDone
+	s.indexMu.Unlock()
+
+	cancel()
+	<-done
+	return nil
+}
+
 func (s *Server) IndexDir(dirPath string, force bool) error {
+	ctx, err := s.beginIndexing()
+	if err != nil {
+		return err
+	}
+	defer s.finishIndexing()
+
 	// pre-fetch list of useable files + size
 	files := make(map[string]int64)
 	totalSize := int64(0)
 
-	err := filepath.WalkDir(dirPath, func(path string, file fs.DirEntry, err error) error {
+	err = filepath.WalkDir(dirPath, func(path string, file fs.DirEntry, err error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -371,6 +418,12 @@ func (s *Server) IndexDir(dirPath string, force bool) error {
 		return nil
 	}
 
+	tx, err := s.VectorDB.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting index transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	// Process files in deterministic order
 	paths := make([]string, 0, len(files))
 	for p := range files {
@@ -383,13 +436,21 @@ func (s *Server) IndexDir(dirPath string, force bool) error {
 
 	var processed int64 = 0
 	for _, filePath := range paths {
+		if err := ctx.Err(); err != nil {
+			common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
+			return fmt.Errorf("indexing cancelled: %w", err)
+		}
 		size := files[filePath]
 		initialProgress := float32(processed) / float32(totalSize)
 
-		if err := s.addFile(filePath, func(progress float32) {
+		if err := s.addFile(ctx, tx, filePath, func(progress float32) {
 			overallProgress = initialProgress + (progress * float32(size) / float32(totalSize))
 			common.EmitEvent("progress", "project-index", s.name, overallProgress)
 		}); err != nil {
+			if errors.Is(err, context.Canceled) {
+				common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
+				return fmt.Errorf("indexing cancelled: %w", err)
+			}
 			common.EmitEvent("error", "project-index", s.name)
 			return fmt.Errorf("error indexing file %s: %w", filePath, err)
 		}
@@ -398,6 +459,13 @@ func (s *Server) IndexDir(dirPath string, force bool) error {
 		processed += size
 		overallProgress = float32(processed) / float32(totalSize)
 		common.EmitEvent("progress", "project-index", s.name, overallProgress)
+	}
+	if err := ctx.Err(); err != nil {
+		common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
+		return fmt.Errorf("indexing cancelled: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("error committing index transaction: %w", err)
 	}
 
 	common.EmitEvent("completed", "project-index", s.name)
