@@ -2,57 +2,54 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { EventsOn, EventsEmit, EventsOff } from "../../wailsjs/runtime/runtime.js";
 
-console.log("exitWarning component setup running");
-
 const showModal = ref(false);
 
 const handleSoftExit = () => {
-    console.log("Received Soft-exit event");
     showModal.value = true;
 };
 
 const handleStopServers = () => {
-    console.log("Stop Servers clicked, emitting exit-ack");
     showModal.value = false;
     EventsEmit("exit-ack");
 };
 
 const handleCancel = () => {
-    console.log("Cancel clicked");
     showModal.value = false;
 };
 
 onMounted(() => {
-    console.log("exitWarning mounted, registering Soft-exit listener");
     EventsOn("Soft-exit", handleSoftExit);
 });
 
 onUnmounted(() => {
-    console.log("exitWarning unmounted, removing Soft-exit listener");
     EventsOff("Soft-exit");
 });
 </script>
 
 <template>
-    <Teleport to="#modals">
-        <div v-if="showModal" class="modal-overlay" @click="handleCancel">
-            <div class="modal" @click.stop>
-                <div class="modal-header">
-                    <h3>Exit Application</h3>
-                </div>
-                <div class="modal-body">
-                    <p>Exiting will stop all running MCP servers. Are you sure you want to continue?</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-cancel" @click="handleCancel">Cancel</button>
-                    <button class="btn btn-danger" @click="handleStopServers">Stop Servers</button>
+    <div class="exit-warning-host">
+        hello {{ showModal }}
+        <Teleport to="#modals">
+            <div v-if="showModal" class="modal-overlay" @click="handleCancel">
+                <div class="modal" @click.stop>
+                    <div class="modal-header">
+                        <h3>Exit Application</h3>
+                    </div>
+                    <div class="modal-body">
+                        <p>Exiting will stop all running MCP servers. Are you sure you want to continue?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-cancel" @click="handleCancel">Cancel</button>
+                        <button class="btn btn-danger" @click="handleStopServers">Stop Servers</button>
+                    </div>
                 </div>
             </div>
-        </div>
-    </Teleport>
+        </Teleport>
+    </div>
 </template>
 
 <style scoped>
+
 .modal-overlay {
     position: fixed;
     top: 0;

@@ -7,7 +7,7 @@ import Projects from "./components/pseudo-pages/Projects.vue";
 import Models from "./components/pseudo-pages/Models.vue";
 import Prebuilt from "./components/pseudo-pages/Prebuilt.vue";
 import ProgressUpdates from "./components/ProgressUpdates.vue";
-import exitWarning from "./components/exitWarning.vue";
+import ExitWarning from "./components/exitWarning.vue";
 
 const pages = {
     "home": Home,
@@ -37,7 +37,7 @@ const page = ref("home")
                     </li>
                 </ul>
                 <ProgressUpdates />
-                <exitWarning />
+                <ExitWarning />
             </div>
         </div>
         <div id="content">
@@ -47,10 +47,6 @@ const page = ref("home")
             <Prebuilt v-if="page === 'prebuilt'" />
             <Settings v-if="page === 'settings'" />
         </div>
-    </div>
-
-    <div id="modals">
-        <!-- This div is accessed via `Teleport` -->
     </div>
 </template>
 

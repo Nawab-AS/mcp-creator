@@ -30,6 +30,11 @@ type Common struct {
 
 func (a *Common) Startup(ctx context.Context) {
 	a.ctx = ctx
+	rt.EventsOn(ctx, "exit-ack", func(optionalData ...interface{}) {
+		fmt.Println("Received exit-ack event, quitting...")
+		exit = true
+		rt.Quit(ctx)
+	})
 }
 
 func (a *Common) StartBackend() {
@@ -76,13 +81,6 @@ func (a *Common) BeforeClose(ctx context.Context) (prevent bool) {
 		return false
 	}
 	rt.EventsEmit(a.ctx, "Soft-exit")
-
-	// gracefully wait for the frontend to acknowledge the exit event
-	rt.EventsOn(a.ctx, "exit-ack", func(optionalData ...interface{}) {
-		fmt.Println("Received exit-ack event, quitting...")
-		exit = true
-		rt.Quit(a.ctx)
-	})
 	fmt.Println("Stopped")
 	return true
 }
