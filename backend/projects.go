@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"mcp-creator/backend/mcpserver"
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 )
@@ -48,6 +50,45 @@ func (a *Projects) Startup(ctx context.Context) {
 		}
 		projects = loadedProjects
 	}
+}
+
+var servers = map[string]*mcpserver.Server{} // name --> server
+func InitProjects() {
+	for _, project := range getProjects() {
+		// create a server for each project
+		go func(proj Project) {
+			server, err := mcpserver.NewServer(project.Name, proj.Path)
+			if err != nil {
+				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
+				return
+			}
+			servers[proj.Name] = server
+
+			projectsDir, projectName, err := ProjectDBPath(proj.Name)
+			if err != nil {
+				fmt.Printf("Error getting project DB path for project %s: %v\n", proj.Name, err)
+				return
+			}
+			server.IndexDir(filepath.Join(projectsDir, projectName))
+			if err := server.StartServer(project.Port); err != nil {
+				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
+			}
+		}(project)
+	}
+}
+
+func (a *Projects) ReindexProject(projectName string) error {
+	server, exists := servers[projectName]
+	if !exists {
+		return fmt.Errorf("server for project %s not found", projectName)
+	}
+	projectsDir, projectName, err := ProjectDBPath(projectName)
+	if err != nil {
+		return fmt.Errorf("error getting project DB path for project %s: %v", projectName, err)
+	}
+	server.Paused = true
+	defer func() { server.Paused = false }()
+	return server.IndexDir(filepath.Join(projectsDir, projectName))
 }
 
 var FS_MUTEX_projects sync.Mutex
@@ -99,6 +140,23 @@ type Project struct {
 }
 
 var projects = []Project{}
+var projectNamePattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+
+func (a *Common) InitProjects() {
+	for _, project := range getProjects() {
+		// create a server for each project
+		go func(proj Project) {
+			server, err := mcpserver.NewServer(project.Name, proj.Path)
+			if err != nil {
+				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
+				return
+			}
+			if err := server.StartServer(project.Port); err != nil {
+				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
+			}
+		}(project)
+	}
+}
 
 // expose to entire package `backend`
 func getProjects() []Project { return projects }
@@ -128,6 +186,9 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 		if s, ok := value.(string); ok {
 			if s == "" {
 				return Response{400, "name: Name cannot be empty"}
+			}
+			if !projectNamePattern.MatchString(s) {
+				return Response{400, "name: Name can only contain letters, numbers, and dashes"}
 			}
 			for _, p := range oldProjects {
 				if p.Name == s && p.Name != projectName {
@@ -200,6 +261,9 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 	if name == "" {
 		return Response{400, "name: Name is required"}
 	}
+	if !projectNamePattern.MatchString(name) {
+		return Response{400, "name: Name can only contain letters, numbers, and dashes"}
+	}
 	if path == "" {
 		return Response{400, "path: Path is required"}
 	}
@@ -252,6 +316,7 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 	if err := writeSaveFile_projects(); err != nil {
 		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
 	}
+	a.ReindexProject(name)
 
 	return Response{201, "Project created successfully"}
 }

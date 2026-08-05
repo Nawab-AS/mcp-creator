@@ -24,6 +24,10 @@ export function GetModels():Promise<Array<backend.Model>>;
 
 export function GetProjects():Promise<Array<backend.Project>>;
 
+export function Hash(arg1:string):Promise<string>;
+
+export function InitProjects():Promise<void>;
+
 export function ModelStorageDirectory(arg1:string):Promise<string>;
 
 export function ModifyProject(arg1:string,arg2:string,arg3:any):Promise<backend.Response>;
@@ -32,6 +36,8 @@ export function PortAvailable(arg1:number):Promise<boolean>;
 
 export function ProjectDBPath(arg1:string):Promise<string>;
 
+export function ReindexProject(arg1:string):Promise<void>;
+
 export function SelectDirDialog(arg1:string):Promise<string>;
 
-export function StartOnnxRuntime():Promise<void>;
+export function StartBackend():Promise<void>;

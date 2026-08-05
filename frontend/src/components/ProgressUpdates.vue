@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { EventsOn } from "../../wailsjs/runtime/runtime"
-import { StartOnnxRuntime } from "../../wailsjs/go/main/App"
+import { StartBackend } from "../../wailsjs/go/main/App"
 import { onBeforeUnmount, ref } from "vue"
 
-type Operation = "model-download" | "model-delete" | "onnxruntime-download"
+type Operation = "model-download" | "model-delete" | "onnxruntime-download" | "project-index"
 
 type Update = {
     operation: Operation
@@ -87,7 +87,7 @@ const unsubscribeListeners = [
     }),
 ]
 
-StartOnnxRuntime()
+StartBackend()
 
 onBeforeUnmount(() => {
     unsubscribeListeners.forEach((unsubscribe) => unsubscribe())
@@ -101,7 +101,15 @@ onBeforeUnmount(() => {
                 <div class="update-header">
                     <p>
                         <span class="update-status">
-                            {{ update.error ? 'Failed' : (update.complete ? (update.operation === 'model-delete' ? 'Deleted' : 'Downloaded') : (update.operation === 'model-delete' ? 'Deleting' : 'Downloading')) }}
+                            <!-- beginning -->
+                            <span v-if="update.error">Fail</span>
+                            <span v-else-if="update.operation === 'project-index'">Index</span>
+                            <span v-else-if="update.operation === 'onnxruntime-download' || update.operation === 'model-download'">Download</span>
+                            <span v-else-if="update.operation === 'model-delete'">Delet</span>
+                            
+                            <!-- ending -->
+                            <span v-if="update.complete && !update.error">ed</span>
+                            <span v-else>ing</span>
                         </span>
                         <span class="model-name">{{ update.modelName == "onnxruntime-download" ? "Indexing Runtime" : update.modelName }}</span>
                         <span v-if="update.error" class="error-message" :title="update.error">{{ update.error }}</span>

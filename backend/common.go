@@ -30,13 +30,15 @@ func (a *Common) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-func (a *Common) StartOnnxRuntime() {
+func (a *Common) StartBackend() {
 	a.onnxStartup.Do(func() {
 		go func() {
 			if err := mcpserver.OnnxStartup(a); err != nil {
 				fmt.Printf("Error during ONNX Runtime startup: %v\n", err)
 			}
 		}()
+
+		InitProjects()
 	})
 }
 
@@ -113,8 +115,12 @@ func (m *Common) ModelStorageDirectory(modelName string) (string, error) {
 		return "", fmt.Errorf("could not create models folder: %w", err)
 	}
 
-	nameHash := sha256.Sum256([]byte(modelName))
-	return filepath.Join(configDirectory, "models", fmt.Sprintf("%x", nameHash[:8])), nil
+	return filepath.Join(configDirectory, "models", m.Hash(modelName)), nil
+}
+
+func (m *Common) Hash(input string) string {
+	hash := sha256.Sum256([]byte(input))
+	return fmt.Sprintf("%x", hash[:8])
 }
 
 func ProjectDBPath(projectName string) (string, string, error) {
@@ -131,8 +137,7 @@ func (m *Common) ProjectDBPath(projectName string) (string, string, error) {
 		return "", "", fmt.Errorf("could not create projects folder: %w", err)
 	}
 
-	nameHash := sha256.Sum256([]byte(projectName))
-	return filepath.Join(configDirectory, "projects"), fmt.Sprintf("%x.db", nameHash[:8]), nil
+	return filepath.Join(configDirectory, "projects"), fmt.Sprintf("%x.db", m.Hash(projectName)), nil
 }
 
 // Download file from source URL

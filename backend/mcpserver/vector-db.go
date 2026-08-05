@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
+	"net/url"
 	"os"
 	"sync"
 
@@ -109,12 +110,27 @@ func (vdb *VectorDB) LoadVectorDB(dbPath string) (*VectorDB, error) {
 func (vdb *VectorDB) openVectorDB(dbPath string) (*VectorDB, error) {
 	// Auto registers sqlite-vec with every SQLite connection opened by this process.
 	registerSQLiteVec.Do(sqlite_vec.Auto)
-	db, err := sql.Open("sqlite3", dbPath)
+	// Use a file URI and enable WAL and a busy timeout to reduce "database is locked" errors.
+	dsn := fmt.Sprintf("file:%s?_busy_timeout=5000&_journal_mode=WAL", url.PathEscape(dbPath))
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
 	}
 
+	// For SQLite, limit to a single open connection to avoid concurrent connection issues.
+	db.SetMaxOpenConns(1)
+
 	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	// Ensure PRAGMAs are set on the opened connection.
+	if _, err := db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if _, err := db.Exec("PRAGMA busy_timeout = 120;"); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -203,7 +219,7 @@ func (vdb *VectorDB) HybridSearch(queryVector []float32, topK int) ([]vectorData
 		return nil, fmt.Errorf("error serializing query vector: %w", err)
 	}
 
-	rows, err := vdb.Query(`SELECT d.id, d.text, v.distance FROM vectors v
+	rows, err := vdb.Query(`SELECT d.id, d.filename, d.text, v.distance FROM vectors v
 		JOIN documents d ON v.id = d.id
 		WHERE v.embedding MATCH ? AND k = ? ORDER BY v.distance ASC;`,
 		query, topK)
@@ -216,7 +232,7 @@ func (vdb *VectorDB) HybridSearch(queryVector []float32, topK int) ([]vectorData
 	results := make([]vectorDataRow, 0, topK)
 	for rows.Next() {
 		var result vectorDataRow
-		if err := rows.Scan(&result.Chunk_ID, &result.text, &result.Distance); err != nil {
+		if err := rows.Scan(&result.Chunk_ID, &result.Filename, &result.text, &result.Distance); err != nil {
 			return nil, fmt.Errorf("scan vector search result: %w", err)
 		}
 		results = append(results, result)
@@ -226,6 +242,20 @@ func (vdb *VectorDB) HybridSearch(queryVector []float32, topK int) ([]vectorData
 	}
 
 	return results, nil
+}
+
+func (vdb *VectorDB) GetVector(chunkID int32) (*vectorDataRow, error) {
+	row := vdb.QueryRow(`SELECT text, filename FROM documents WHERE id = ?;`, chunkID)
+	result := vectorDataRow{}
+
+	if err := row.Scan(&result.text, &result.Filename); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("vector with chunk ID %d not found", chunkID)
+		}
+		return nil, fmt.Errorf("scan vector: %w", err)
+	}
+
+	return &result, nil
 }
 
 func (vdb *VectorDB) WriteToDisk() error {

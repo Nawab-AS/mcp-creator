@@ -20,6 +20,7 @@ type CommonFuncs interface {
 	EmitEvent(eventName string, data ...interface{})
 	ModelStorageDirectory(modelName string) (string, error)
 	ProjectDBPath(projectName string) (string, string, error)
+	Hash(input string) string
 }
 
 func OnnxStartup(commonFuncs CommonFuncs) error {
@@ -56,47 +57,8 @@ func OnnxStartup(commonFuncs CommonFuncs) error {
 		fmt.Printf("Error initializing the onnxruntime library: %v\n", e)
 		return e
 	}
-
-	envLoaded := time.Now().UnixNano()
-	server, err := NewServer("Waterloo-supplementary-application", "MiniLM-L3-v2 (quantized)")
-	if err != nil {
-		fmt.Println("Error loading server:", err)
-		return err
-	}
-
-	fmt.Println("Server loaded successfully")
-	serverLoaded := time.Now().UnixNano()
-	if err := server.AddFile("/Users/syeds/Documents/notes/Waterloo-supplementary-application.md"); err != nil {
-		return fmt.Errorf("error adding data: %w", err)
-	}
-
-	dataAdded := time.Now().UnixNano()
-
-	query := "What is the purpose of this application?"
-	results, err := server.HybridSearch(query, 5)
-	if err != nil {
-		fmt.Println("Error performing hybrid search:", err)
-		return err
-	}
-
-	fmt.Printf("Hybrid search results. Query: %s.\nChunks: ", query)
-	for _, result := range results {
-		fmt.Printf("%d ", result.Chunk_ID)
-	}
-	fmt.Println()
-	searchingFinished := time.Now().UnixNano()
-
-	server.WriteToDisk()
-	server.Close()
 	end := time.Now().UnixNano()
-
-	fmt.Printf("\n\n\nTime taken to load environment: %d ms\n", (envLoaded-start)/1e6)
-	fmt.Printf("Time taken to load server: %d ms\n", (serverLoaded-envLoaded)/1e6)
-	fmt.Printf("Time taken to add data: %d ms\n", (dataAdded-serverLoaded)/1e6)
-	fmt.Printf("Time taken to perform search: %d ms\n", (searchingFinished-dataAdded)/1e6)
-	fmt.Printf("Time taken to write vector database to disk: %d ms\n", (end-searchingFinished)/1e6)
-	fmt.Printf("Total time taken: %d ms\n", (end-start)/1e6)
-
+	fmt.Printf("Time taken to load environment: %d ms\n", (end-start)/1e6)
 	return nil
 }
 

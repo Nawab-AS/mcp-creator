@@ -46,6 +46,14 @@ export function GetProjects() {
   return window['go']['main']['App']['GetProjects']();
 }
 
+export function Hash(arg1) {
+  return window['go']['main']['App']['Hash'](arg1);
+}
+
+export function InitProjects() {
+  return window['go']['main']['App']['InitProjects']();
+}
+
 export function ModelStorageDirectory(arg1) {
   return window['go']['main']['App']['ModelStorageDirectory'](arg1);
 }
@@ -62,10 +70,14 @@ export function ProjectDBPath(arg1) {
   return window['go']['main']['App']['ProjectDBPath'](arg1);
 }
 
+export function ReindexProject(arg1) {
+  return window['go']['main']['App']['ReindexProject'](arg1);
+}
+
 export function SelectDirDialog(arg1) {
   return window['go']['main']['App']['SelectDirDialog'](arg1);
 }
 
-export function StartOnnxRuntime() {
-  return window['go']['main']['App']['StartOnnxRuntime']();
+export function StartBackend() {
+  return window['go']['main']['App']['StartBackend']();
 }
