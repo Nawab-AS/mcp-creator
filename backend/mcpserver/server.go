@@ -41,7 +41,7 @@ func NewServer(projectName string, modelName string) (*Server, error) {
 		VectorDB:        *vdb,
 		modelData:       model,
 		dimensions:      vectorDimensions,
-		EmbeddingMargin: 10, // default margin
+		EmbeddingMargin: 5, // default margin
 	}, nil
 }
 
@@ -79,36 +79,16 @@ func (s *Server) AddFile(filePath string) error {
 	text, err := textContent(filePath)
 	if err != nil {
 		return fmt.Errorf("error extracting text from file: %w", err)
+	} else if len(text) == 0 {
+		return fmt.Errorf("file contains no text")
+	} else {
+		text = "<START OF FILE>\n" + text + "\n<END OF FILE>"
 	}
 
-	// remove any existing vectors for this file
-	tx, err := s.VectorDB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() // fallback on error, canceled by tx.Commit()
-
-	// trigger auto-deletes corresponding vectors when document is deleted
-	res, err := tx.Exec(`DELETE FROM documents WHERE filename = ?;`, filePath)
-	if err != nil {
-		return fmt.Errorf("error deleting existing document entries: %w", err)
-	}
-
-	if _, err := res.RowsAffected(); err != nil {
-		return fmt.Errorf("error checking rows affected: %w", err)
-	}
-	//  if rowsDeleted > 0 {
-	// 	fmt.Printf("Deleted %d existing document entries`\n", rowsDeleted)
-	// } else {
-	// 	fmt.Println("No existing document entries found")
-	// }
-
+	s.RemoveFile(filePath)
 	tokens, err := s.modelData.Tokenize(text)
 	if err != nil {
 		return fmt.Errorf("error tokenizing text: %w", err)
-	}
-	if len(tokens) == 0 {
-		return fmt.Errorf("file contains no tokens")
 	}
 	// fmt.Printf("Tokenized text into %d tokens\n", len(tokens))
 
@@ -147,6 +127,12 @@ func (s *Server) AddFile(filePath string) error {
 	}
 	// fmt.Printf("Generated embeddings for %d rows. %d dimensions\n", len(embeddings), len(embeddings[0]))
 
+	tx, err := s.VectorDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // fallback on error, canceled by tx.Commit()
+
 	for i, embedding := range embeddings {
 		if err := s.VectorDB.insertVector(tx, vectorDataRow{
 			Chunk_ID: int32(i),
@@ -159,6 +145,39 @@ func (s *Server) AddFile(filePath string) error {
 	}
 	// fmt.Printf("Inserted %d vectors into the database\n", len(embeddings))
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("error committing document deletion: %w", err)
+	}
+	return nil
+}
+
+func (s *Server) RemoveFile(filePath string) error {
+	tx, err := s.VectorDB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // fallback on error, canceled by tx.Commit()
+
+	// Delete vectors
+	res, err := tx.Exec(`
+		DELETE FROM vectors
+		WHERE id IN (SELECT id FROM documents WHERE filename = ?);`, filePath)
+	if err != nil {
+		return fmt.Errorf("error deleting vectors: %w", err)
+	}
+	if _, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("error checking vectors rows affected: %w", err)
+	}
+
+	// Delete documents
+	res, err = tx.Exec(`DELETE FROM documents WHERE filename = ?;`, filePath)
+	if err != nil {
+		return fmt.Errorf("error deleting existing document entries: %w", err)
+	}
+
+	if _, err := res.RowsAffected(); err != nil {
+		return fmt.Errorf("error checking rows affected: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error committing document deletion: %w", err)
 	}

@@ -158,7 +158,9 @@ async function modifyModel(name: string) {
 }
 
 .no-models {
-    width: 599px;
+    width: 565px;
+    font-size: 1.2rem;
+    color: #888;
     text-align: center;
     font-size: 1.2rem;
     margin-top: 25vh;

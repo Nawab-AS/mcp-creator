@@ -31,6 +31,7 @@ export namespace backend {
 	    lastModified: string;
 	    status?: number;
 	    modelUsed: string;
+	    port: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Project(source);
@@ -44,6 +45,7 @@ export namespace backend {
 	        this.lastModified = source["lastModified"];
 	        this.status = source["status"];
 	        this.modelUsed = source["modelUsed"];
+	        this.port = source["port"];
 	    }
 	}
 	export class Response {

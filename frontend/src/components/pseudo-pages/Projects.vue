@@ -2,7 +2,7 @@
 import { ref, onMounted, toRaw, watch } from 'vue'
 import SideModal from '../sideModal.vue'
 
-import { GetProjects, GetModels, ModifyProject, CreateProject, SelectDirDialog } from '../../../wailsjs/go/main/App'
+import { GetProjects, GetModels, ModifyProject, CreateProject, SelectDirDialog, GetAvailablePort } from '../../../wailsjs/go/main/App'
 import type { backend } from '../../../wailsjs/go/models'
 
 const projects = ref<backend.Project[]>([])
@@ -56,6 +56,7 @@ watch(
         settingsModal.value.project?.name,
         settingsModal.value.project?.path,
         settingsModal.value.project?.modelUsed,
+        settingsModal.value.project?.port,
     ],
     () => {
         settingsModal.value.error = ''
@@ -74,6 +75,19 @@ watch(
                 project: null,
             }
         }
+    },
+)
+
+watch(
+    () => settingsModal.value.project?.port,
+    (port) => {
+        port = Number(port)
+        if (Number.isNaN(port)) {
+            settingsModal.value.project!.port = 1024
+            return
+        }
+        if (port < 1024) { settingsModal.value.project!.port = 1024 }
+        if (port > 49150) { settingsModal.value.project!.port = 49150 }
     },
 )
 
@@ -111,7 +125,13 @@ async function updateModifiedProjects(cancelled: boolean = false) {
     if (!settingsModal.value.project) return true;
 
     if (settingsModal.value.type === 'Create') {
-        const result = await CreateProject(settingsModal.value.project.name, settingsModal.value.project.path, settingsModal.value.project.modelUsed)
+        const result = await CreateProject(
+            settingsModal.value.project.name,
+            settingsModal.value.project.path,
+            settingsModal.value.project.modelUsed,
+            settingsModal.value.project.port
+        )
+
         if (result.statusCode !== 201) {
             settingsModal.value.error = result.message
             return true
@@ -165,11 +185,12 @@ async function selectProjectDirectory(title: string) {
     }
 }
 
-function createProjectModal() {
+async function createProjectModal() {
     let project: backend.Project = {
         name: '',
         path: '',
         star: false,
+        port: await GetAvailablePort(),
         lastModified: new Date().toISOString(),
         modelUsed: '',
     }
@@ -233,6 +254,7 @@ function createProjectModal() {
                 </tr>
             </tbody>
         </table>
+        <p v-if="projects.length === 0" id="no-projects">No projects?<br />Create one!</p>
 
         <!-- settings modal -->
         <SideModal :open="settingsModal.open" :close="updateModifiedProjects">
@@ -260,6 +282,19 @@ function createProjectModal() {
                     </select>
                 </div>
                 <p class="error" v-if="settingsModal.error.startsWith('model: ')">{{ settingsModal.error.slice('model: '.length) }}</p>
+                <br />
+
+                <details id="project-advanced">
+                    <summary>Advanced Options</summary>
+                    <br />
+                    <div id="project-port">
+                        <span>
+                            <label for="project-port">Port</label>
+                            <input type="number" id="project-port" v-model.number="settingsModal.project.port"/>
+                        </span>
+                        <p class="error" v-if="settingsModal.error.startsWith('port: ')">{{ settingsModal.error.slice('port: '.length) }}</p>
+                    </div>
+                </details>
             </div>
         </SideModal>
     </div>
@@ -362,6 +397,29 @@ p.error {
     margin: 5px 0 0 0;
 }
 
+#project-advanced {
+    margin-top: 10px;
+    border: 1px solid #454545;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+#project-port label, #project-port p.error {
+    margin-left: 20px;
+}
+
+#project-port input {
+    margin-left: 10px;
+    outline: none;
+    border: 1px solid #454545;
+    border-radius: 5px;
+    padding: 5px 10px;
+    width: 60px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: white;
+    background-color: #242424;
+}
 
 table {
     width: 100%;
@@ -435,6 +493,14 @@ td.project-name>p.path {
     white-space: nowrap;
     -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 15px);
     mask-image: linear-gradient(to right, transparent 0%, #000 15px);
+}
+
+
+#no-projects {
+    text-align: center;
+    font-size: 1.2rem;
+    color: #888;
+    margin-top: 20vh;
 }
 
 </style>

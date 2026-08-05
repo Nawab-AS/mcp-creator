@@ -27,7 +27,7 @@ func (a *Models) Startup(ctx context.Context) {
 	modelsFilePath := filepath.Join(configDir, "models.json")
 	if _, err := os.Stat(modelsFilePath); os.IsNotExist(err) {
 		// File does not exist, create it with default models
-		if err := writeSaveFile(); err != nil {
+		if err := writeSaveFile_models(); err != nil {
 			fmt.Println("Error writing default models to models.json:", err)
 			return
 		}
@@ -51,11 +51,11 @@ func (a *Models) Startup(ctx context.Context) {
 	refreshInstalledModelState()
 }
 
-var FS_MUTEX sync.Mutex
+var FS_MUTEX_models sync.Mutex
 
-func writeSaveFile() error {
-	FS_MUTEX.Lock()
-	defer FS_MUTEX.Unlock()
+func writeSaveFile_models() error {
+	FS_MUTEX_models.Lock()
+	defer FS_MUTEX_models.Unlock()
 	// Write `models` to `models.json` in the config directory
 	configDir, err := GetConfigPath()
 	if err != nil {
@@ -63,18 +63,14 @@ func writeSaveFile() error {
 		return err
 	}
 
-	return writeModelsFile(models, filepath.Join(configDir, "models.json"))
-}
-
-func writeModelsFile(modelsToWrite []Model, modelsFilePath string) error {
-	file, err := os.Create(modelsFilePath)
+	file, err := os.Create(filepath.Join(configDir, "models.json"))
 	if err != nil {
 		fmt.Println("Error creating models.json:", err)
 		return err
 	}
 	defer file.Close()
 
-	err = json.NewEncoder(file).Encode(modelsToWrite)
+	err = json.NewEncoder(file).Encode(models)
 	if err != nil {
 		fmt.Println("Error writing to models.json:", err)
 		return err
@@ -233,7 +229,7 @@ func (a *Models) DownloadModel(modelName string) {
 
 		model.Installed = true
 		model.Path = filepath.Join(modelDirectory, "model.onnx")
-		if err := writeSaveFile(); err != nil {
+		if err := writeSaveFile_models(); err != nil {
 			fmt.Printf("Unable to save model state for %q: %v\n", modelName, err)
 		}
 		runtime.EventsEmit(a.ctx, "completed", "model-download", modelName)
@@ -294,7 +290,7 @@ func (a *Models) DeleteModel(modelName string) {
 
 				model.Installed = false
 				model.Path = ""
-				writeSaveFile()
+				writeSaveFile_models()
 				runtime.EventsEmit(a.ctx, "completed", "model-delete", modelName)
 				return
 			}
@@ -306,7 +302,7 @@ func (a *Models) DeleteModel(modelName string) {
 func (a *Models) GetModels() []Model { return GetModels() }
 
 func GetModels() []Model {
-	FS_MUTEX.Lock()
-	defer FS_MUTEX.Unlock()
+	FS_MUTEX_models.Lock()
+	defer FS_MUTEX_models.Unlock()
 	return models
 }

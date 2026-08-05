@@ -31,7 +31,6 @@ func (vdb *VectorDB) CreateVectorTable(vectorDimension int) error {
 	}
 
 	createTableSQL := fmt.Sprintf(`
-
 	CREATE TABLE IF NOT EXISTS documents (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		text TEXT NOT NULL,
@@ -43,14 +42,6 @@ func (vdb *VectorDB) CreateVectorTable(vectorDimension int) error {
 		id INTEGER PRIMARY KEY REFERENCES documents(id),
 		embedding float[%d]
 	);
-
-	-- cascades to delete vectors when its referencing document is deleted
-	CREATE TRIGGER IF NOT EXISTS cascade_delete_vectors
-	AFTER DELETE ON documents
-	BEGIN
-		DELETE FROM vectors WHERE id = OLD.id;
-	END;
-
 	
 	CREATE TABLE IF NOT EXISTS metadata (
 		key TEXT PRIMARY KEY NOT NULL,

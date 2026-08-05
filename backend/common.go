@@ -19,6 +19,8 @@ import (
 	rt "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+var FS_MUTEX sync.Mutex
+
 type Common struct {
 	ctx         context.Context
 	onnxStartup sync.Once

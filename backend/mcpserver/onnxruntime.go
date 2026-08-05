@@ -79,10 +79,11 @@ func OnnxStartup(commonFuncs CommonFuncs) error {
 		return err
 	}
 
-	fmt.Println("Hybrid search results:")
+	fmt.Printf("Hybrid search results. Query: %s.\nChunks: ", query)
 	for _, result := range results {
-		fmt.Printf("  Chunk_ID: %d  Text: %s\n", result.Chunk_ID, result.text)
+		fmt.Printf("%d ", result.Chunk_ID)
 	}
+	fmt.Println()
 	searchingFinished := time.Now().UnixNano()
 
 	server.WriteToDisk()
