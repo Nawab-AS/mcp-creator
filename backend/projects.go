@@ -69,7 +69,7 @@ func InitProjects() {
 				fmt.Printf("Error getting project DB path for project %s: %v\n", proj.Name, err)
 				return
 			}
-			server.IndexDir(filepath.Join(projectsDir, projectName))
+			server.IndexDir(filepath.Join(projectsDir, projectName), false)
 			if err := server.StartServer(proj.Port); err != nil {
 				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
 			}
@@ -82,13 +82,20 @@ func (a *Projects) ReindexProject(projectName string) error {
 	if !exists {
 		return fmt.Errorf("server for project %s not found", projectName)
 	}
-	projectsDir, projectName, err := ProjectDBPath(projectName)
-	if err != nil {
-		return fmt.Errorf("error getting project DB path for project %s: %v", projectName, err)
+
+	var project *Project
+	for i := range projects {
+		if projects[i].Name == projectName {
+			project = &projects[i]
+			break
+		}
+	}
+	if project == nil {
+		return fmt.Errorf("project %s not found", projectName)
 	}
 	server.Paused = true
 	defer func() { server.Paused = false }()
-	return server.IndexDir(filepath.Join(projectsDir, projectName))
+	return server.IndexDir(project.Path, true)
 }
 
 var FS_MUTEX_projects sync.Mutex
@@ -392,6 +399,6 @@ func (a *Projects) DeleteProject(projectName string) Response {
 		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
 	}
 
-	fmt.Printf("Deleted Project `%s`", projectName)
+	fmt.Printf("Deleted Project `%s`\n", projectName)
 	return Response{200, fmt.Sprintf("Deleted project `%s` successfully", projectName)}
 }

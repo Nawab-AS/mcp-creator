@@ -335,7 +335,7 @@ func (s *Server) removeFile(tx *sql.Tx, filePath string) error {
 	return nil
 }
 
-func (s *Server) IndexDir(dirPath string) error {
+func (s *Server) IndexDir(dirPath string, force bool) error {
 	// pre-fetch list of useable files + size
 	files := make(map[string]int64)
 	totalSize := int64(0)
@@ -367,8 +367,7 @@ func (s *Server) IndexDir(dirPath string) error {
 	// fmt.Printf("Total size of files to index: %d bytes\n", totalSize)
 
 	// If there's nothing to do, emit completed and return
-	if totalSize == 0 {
-		common.EmitEvent("completed", "project-index", s.name)
+	if (totalSize == 0 || len(files) == 0) && !force { // force just adds a UI notification
 		return nil
 	}
 
@@ -402,7 +401,7 @@ func (s *Server) IndexDir(dirPath string) error {
 	}
 
 	common.EmitEvent("completed", "project-index", s.name)
-	fmt.Printf("Indexed dir `%s`", dirPath)
+	fmt.Printf("Indexed dir `%s`\n", dirPath)
 	return nil
 }
 
@@ -445,7 +444,7 @@ func (s *Server) StartServer(port int) error {
 	if err != nil {
 		return fmt.Errorf("error getting project DB path: %w", err)
 	}
-	s.IndexDir(filepath.Join(projectsDir, projectName))
+	s.IndexDir(filepath.Join(projectsDir, projectName), false)
 
 	s.mcpServer = mcp.NewServer(&mcp.Implementation{
 		Name:  s.name,
