@@ -7,6 +7,7 @@ import Projects from "./components/pseudo-pages/Projects.vue";
 import Models from "./components/pseudo-pages/Models.vue";
 import Prebuilt from "./components/pseudo-pages/Prebuilt.vue";
 import ProgressUpdates from "./components/ProgressUpdates.vue";
+import exitWarning from "./components/exitWarning.vue";
 
 const pages = {
     "home": Home,
@@ -34,9 +35,9 @@ const page = ref("home")
                         :class="{ active: page === itemName }">
                         <p>{{ itemName.charAt(0).toUpperCase() + itemName.slice(1) }}</p>
                     </li>
-
                 </ul>
                 <ProgressUpdates />
+                <exitWarning />
             </div>
         </div>
         <div id="content">

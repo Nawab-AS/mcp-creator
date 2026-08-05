@@ -47,10 +47,10 @@ func (a *Common) CopyToClipboard(text string) {
 	rt.ClipboardSetText(a.ctx, text)
 }
 
-var uninstall bool
+var exit bool
 
 func (a *Common) Uninstall() {
-	uninstall = true
+	exit = true
 	for i := range projects {
 		project := &projects[i]
 		DeleteProject(project.Name)
@@ -72,9 +72,17 @@ func (a *Common) Uninstall() {
 }
 
 func (a *Common) BeforeClose(ctx context.Context) (prevent bool) {
-	if uninstall {
+	if exit {
 		return false
 	}
+	rt.EventsEmit(a.ctx, "Soft-exit")
+
+	// gracefully wait for the frontend to acknowledge the exit event
+	rt.EventsOn(a.ctx, "exit-ack", func(optionalData ...interface{}) {
+		fmt.Println("Received exit-ack event, quitting...")
+		exit = true
+		rt.Quit(a.ctx)
+	})
 	fmt.Println("Stopped")
 	return true
 }
