@@ -36,9 +36,13 @@ func (a *Common) StartBackend() {
 			if err := mcpserver.OnnxStartup(a); err != nil {
 				fmt.Printf("Error during ONNX Runtime startup: %v\n", err)
 			}
-			InitProjects()
+			a.InitProjects()
 		}()
 	})
+}
+
+func (a *Common) CopyToClipboard(text string) {
+	rt.ClipboardSetText(a.ctx, text)
 }
 
 func (a *Common) EmitEvent(eventName string, data ...interface{}) {

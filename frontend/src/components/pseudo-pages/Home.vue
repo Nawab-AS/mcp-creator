@@ -1,42 +1,80 @@
 <script setup lang="ts">
-const firstPort = 4100 + Math.floor(Math.random() * 800)
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { GetProjects, CopyToClipboard } from '../../../wailsjs/go/main/App'
+import { EventsOn } from '../../../wailsjs/runtime/runtime'
+import type { backend } from '../../../wailsjs/go/models'
 
-const servers = [
-    {
-        name: 'IB notes server',
-        port: firstPort,
-        description: "Running..."
+const projects = ref<backend.Project[]>([])
+const loading = ref(true)
+const error = ref('')
+
+const runningProjects = computed(() => projects.value.filter(project => project.status === 0 || project.status === undefined))
+
+async function refreshProjects() {
+    try {
+        projects.value = await GetProjects()
+        error.value = ''
+    } catch (cause) {
+        error.value = cause instanceof Error ? cause.message : 'Unable to load projects'
+    } finally {
+        loading.value = false
     }
-]
+}
+
+const unsubscribeStatus = EventsOn('project-status', (projectName: string, status: number) => {
+    const project = projects.value.find(item => item.name === projectName)
+    if (project) {
+        project.status = status
+    } else {
+        refreshProjects()
+    }
+})
+
+onMounted(refreshProjects)
+onBeforeUnmount(unsubscribeStatus)
+
+function statusLabel(status?: number) {
+    if (status === 2) return 'Starting'
+    if (status === 3) return 'Stopping'
+    if (status === 1) return 'Offline'
+    if (status === 4) return 'Unknown'
+    return 'Running'
+}
 </script>
 
 <template>
     <div id="home">
         <header class="page-header">
             <div>
-                <p class="eyebrow">Deno runtime</p>
                 <h1>Server overview</h1>
             </div>
-            <div class="status-summary" aria-label="1 of 1 servers running">
-                <span class="status-dot"></span>
-                <span><strong>1/1</strong> servers running</span>
+            <div class="status-summary">
+                <span class="status-dot" :class="{ inactive: runningProjects.length === 0 }"></span>
+                <span><strong>{{ runningProjects.length }}/{{ projects.length }}</strong> servers running</span>
             </div>
         </header>
 
         <section class="server-list" aria-label="Running servers">
-            <article v-for="server in servers" :key="server.port" class="server-card">
-                <div class="server-heading">
-                    <span class="server-icon">D</span>
-                    <div>
-                        <h2>{{ server.name }}</h2>
-                        <p>{{ server.description }}</p>
+            <p v-if="loading" class="message">Loading projects...</p>
+            <p v-else-if="error" class="message error-message">{{ error }}</p>
+            <p v-else-if="projects.length === 0" class="message">No projects yet.</p>
+            <template v-else>
+                <article v-for="project in projects" :key="project.name" class="server-card">
+                    <div class="server-heading">
+                        <span class="server-icon">{{ project.name.charAt(0).toUpperCase() }}</span>
+                        <div>
+                            <h2>{{ project.name }}</h2>
+                            <p>{{ project.path }}</p>
+                        </div>
                     </div>
-                </div>
-                <div class="server-details">
-                    <span class="running-status"><span class="status-dot"></span>Running</span>
-                    <code>localhost:{{ server.port }}</code>
-                </div>
-            </article>
+                    <div class="server-details">
+                        <span class="running-status" :class="{ offline: project.status === 1 }">
+                            <span class="status-dot"></span>{{ statusLabel(project.status) }}
+                        </span>
+                        <code @click="CopyToClipboard(`http://localhost:${project.port}`)">SSE: http://localhost:{{ project.port }}</code>
+                    </div>
+                </article>
+            </template>
         </section>
     </div>
 </template>
@@ -56,14 +94,6 @@ const servers = [
     justify-content: space-between;
     gap: 16px;
     margin-bottom: 24px;
-}
-
-.eyebrow {
-    margin: 0 0 5px;
-    color: #a6a6a6;
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
 }
 
 h1, h2, p {
@@ -105,11 +135,25 @@ h1 {
     box-shadow: 0 0 0 3px rgba(85, 189, 98, 0.14);
 }
 
+.status-dot.inactive {
+    background-color: #777;
+    box-shadow: none;
+}
+
 .server-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 12px;
     max-width: 860px;
+}
+
+.message {
+    margin: 8px 0;
+    color: #bdbdbd;
+}
+
+.error-message {
+    color: #e58585;
 }
 
 .server-card {
@@ -175,6 +219,14 @@ h2 {
     width: 6px;
     height: 6px;
     box-shadow: none;
+}
+
+.running-status.offline {
+    color: #e58585;
+}
+
+.running-status.offline .status-dot {
+    background-color: #e58585;
 }
 
 code {

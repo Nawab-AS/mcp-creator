@@ -12,13 +12,18 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Projects struct
 type Projects struct{ ctx context.Context }
 
+var global_ctx context.Context
+
 func (a *Projects) Startup(ctx context.Context) {
 	a.ctx = ctx
+	global_ctx = ctx
 
 	// load (/save default) models save file
 	configDir, err := GetConfigPath()
@@ -52,11 +57,30 @@ func (a *Projects) Startup(ctx context.Context) {
 	}
 }
 
+func editStatus(projectName string, status Status) error {
+	var project *Project
+	for i := range projects {
+		if projects[i].Name == projectName {
+			project = &projects[i]
+			break
+		}
+	}
+
+	if project == nil {
+		return fmt.Errorf("project `%s` not found", projectName)
+	}
+
+	project.Status = status
+	runtime.EventsEmit(global_ctx, "project-status", projectName, status)
+	return nil
+}
+
 var servers = map[string]*mcpserver.Server{} // name --> server
-func InitProjects() {
+func (a *Common) InitProjects() {
 	for _, project := range getProjects() {
 		// create a server for each project
 		go func(proj Project) {
+			editStatus(proj.Name, StatusStarting)
 			server, err := mcpserver.NewServer(proj.Name, proj.ModelUsed)
 			if err != nil {
 				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
@@ -73,6 +97,7 @@ func InitProjects() {
 			if err := server.StartServer(proj.Port); err != nil {
 				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
 			}
+			editStatus(proj.Name, StatusOnline)
 		}(project)
 	}
 }
@@ -93,8 +118,13 @@ func (a *Projects) ReindexProject(projectName string) error {
 	if project == nil {
 		return fmt.Errorf("project %s not found", projectName)
 	}
+	project.LastModified = time.Now().Format(time.RFC3339)
 	server.Paused = true
-	defer func() { server.Paused = false }()
+	project.Status = StatusOffline
+	defer func() {
+		server.Paused = false
+		project.Status = StatusOnline
+	}()
 	return server.IndexDir(project.Path, true)
 }
 
@@ -148,22 +178,6 @@ type Project struct {
 
 var projects = []Project{}
 var projectNamePattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
-
-func (a *Common) InitProjects() {
-	for _, project := range getProjects() {
-		// create a server for each project
-		go func(proj Project) {
-			server, err := mcpserver.NewServer(proj.Name, proj.ModelUsed)
-			if err != nil {
-				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
-				return
-			}
-			if err := server.StartServer(proj.Port); err != nil {
-				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
-			}
-		}(project)
-	}
-}
 
 // expose to entire package `backend`
 func getProjects() []Project { return projects }
@@ -315,7 +329,7 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 		Path:         path,
 		Star:         false,
 		LastModified: time.Now().Format(time.RFC3339),
-		Status:       StatusUnknown,
+		Status:       StatusStarting,
 		ModelUsed:    model,
 		Port:         port,
 	})
