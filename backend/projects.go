@@ -57,7 +57,7 @@ func InitProjects() {
 	for _, project := range getProjects() {
 		// create a server for each project
 		go func(proj Project) {
-			server, err := mcpserver.NewServer(project.Name, proj.Path)
+			server, err := mcpserver.NewServer(proj.Name, proj.ModelUsed)
 			if err != nil {
 				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
 				return
@@ -70,7 +70,7 @@ func InitProjects() {
 				return
 			}
 			server.IndexDir(filepath.Join(projectsDir, projectName))
-			if err := server.StartServer(project.Port); err != nil {
+			if err := server.StartServer(proj.Port); err != nil {
 				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
 			}
 		}(project)
@@ -146,12 +146,12 @@ func (a *Common) InitProjects() {
 	for _, project := range getProjects() {
 		// create a server for each project
 		go func(proj Project) {
-			server, err := mcpserver.NewServer(project.Name, proj.Path)
+			server, err := mcpserver.NewServer(proj.Name, proj.ModelUsed)
 			if err != nil {
 				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
 				return
 			}
-			if err := server.StartServer(project.Port); err != nil {
+			if err := server.StartServer(proj.Port); err != nil {
 				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
 			}
 		}(project)
@@ -316,7 +316,18 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 	if err := writeSaveFile_projects(); err != nil {
 		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
 	}
+
+	server, err := mcpserver.NewServer(name, model)
+	if err != nil {
+		fmt.Printf("Error initializing server for project %s: %v\n", name, err)
+		return Response{500, fmt.Sprintf("Error initializing server for project %s: %v", name, err)}
+	}
+	if err := server.StartServer(port); err != nil {
+		fmt.Printf("Error starting server for project %s: %v\n", name, err)
+		return Response{500, fmt.Sprintf("Error starting server for project %s: %v", name, err)}
+	}
 	a.ReindexProject(name)
+	fmt.Printf("Created Project `%s` at path `%s` with model `%s` and port `%d`\n", name, path, model, port)
 
 	return Response{201, "Project created successfully"}
 }
@@ -372,9 +383,15 @@ func (a *Projects) DeleteProject(projectName string) Response {
 		}
 	}
 
+	if server, exists := servers[projectName]; exists {
+		server.Delete()
+		delete(servers, projectName)
+	}
+
 	if err := writeSaveFile_projects(); err != nil {
 		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
 	}
 
+	fmt.Printf("Deleted Project `%s`", projectName)
 	return Response{200, fmt.Sprintf("Deleted project `%s` successfully", projectName)}
 }

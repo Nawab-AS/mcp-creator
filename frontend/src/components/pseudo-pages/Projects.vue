@@ -2,7 +2,7 @@
 import { ref, onMounted, toRaw, watch } from 'vue'
 import SideModal from '../sideModal.vue'
 
-import { GetProjects, GetModels, ModifyProject, CreateProject, SelectDirDialog, GetAvailablePort } from '../../../wailsjs/go/main/App'
+import { GetProjects, GetModels, ModifyProject, CreateProject, DeleteProject as DeleteProjectFunc, ReindexProject as ReindexProjectFunc, SelectDirDialog, GetAvailablePort } from '../../../wailsjs/go/main/App'
 import type { backend } from '../../../wailsjs/go/models'
 
 const projects = ref<backend.Project[]>([])
@@ -188,6 +188,22 @@ async function selectProjectDirectory(title: string) {
     }
 }
 
+async function DeleteProject(projectName: string) {
+    const result = await DeleteProjectFunc(projectName)
+    if (result.statusCode !== 200) {
+        settingsModal.value.error = result.message
+        return
+    }
+    settingsModal.value.open = false
+    await refreshProjects(false)
+}
+
+async function ReindexProject(projectName: string) {
+    settingsModal.value.open = false
+    ReindexProjectFunc(projectName)
+    await refreshProjects(false)
+}
+
 async function createProjectModal() {
     let project: backend.Project = {
         name: '',
@@ -214,7 +230,6 @@ async function createProjectModal() {
         <div id="header">
             <h1>Projects</h1>
             <span id="buttons">
-                <button class="import">Import</button>
                 <button class="create" @click="createProjectModal()">Create</button>
             </span>
         </div>
@@ -263,7 +278,7 @@ async function createProjectModal() {
         <SideModal :open="settingsModal.open" :close="updateModifiedProjects">
             <h2>{{ settingsModal.type == 'Create' ? 'Create Project' : 'Modify Project' }}</h2>
             <br />
-            <div v-if="settingsModal.project">
+            <div v-if="settingsModal.project" id="project-settings">
                 <label for="project-name">Project Name</label>
                 <input type="text" id="project-name" v-model="settingsModal.project.name" placeholder="My New Project" maxlength="20"/>
                 <p class="error" v-if="settingsModal.error.startsWith('name: ')">{{ settingsModal.error.slice('name: '.length) }}</p>
@@ -298,6 +313,11 @@ async function createProjectModal() {
                         <p class="error" v-if="settingsModal.error.startsWith('port: ')">{{ settingsModal.error.slice('port: '.length) }}</p>
                     </div>
                 </details>
+                <br /><br />
+                <span v-if="settingsModal.type === 'Modify'" id="modal-actions">
+                    <button type="button" id="reindex" @click="ReindexProject(settingsModal.project.name)">Reindex</button>
+                    <button type="button" id="delete" @click="DeleteProject(settingsModal.project.name)">Delete</button>
+                </span>
             </div>
         </SideModal>
     </div>
@@ -326,14 +346,13 @@ async function createProjectModal() {
     transition-duration: 0.5s;
 }
 
-#header button.import {
-    background-color: #454545;
-    color: white;
-}
-
 #header button.create {
     background-color: #328435;
     color: white;
+}
+
+#project-settings {
+    width: 300px;
 }
 
 #project-name {
@@ -341,7 +360,7 @@ async function createProjectModal() {
     border: 1px solid #454545;
     border-radius: 5px;
     padding: 5px 10px;
-    width: calc(100% - 20px);
+    width: calc(100% - 30px);
     margin-top: 10px;
     font-size: 0.8rem;
     color: white;
@@ -388,7 +407,7 @@ async function createProjectModal() {
     border: 1px solid #454545;
     border-radius: 5px;
     padding: 5px 10px;
-    width: calc(100% - 20px);
+    width: calc(100% - 30px);
     font-size: 0.8rem;
     color: white;
     background-color: #242424;
@@ -504,6 +523,30 @@ td.project-name>p.path {
     font-size: 1.2rem;
     color: #888;
     margin-top: 20vh;
+}
+
+#modal-actions {
+    display: flex;
+    gap: 10px;
+}
+
+#modal-actions > button {
+	padding: 5px 10px;
+	font-size: 1rem;
+	border: none;
+	border-radius: 5px;
+	cursor: pointer;
+	transition-duration: 0.5s;
+}
+
+button#reindex {
+    background-color: #454545;
+    color: white;
+}
+
+button#delete {
+    background-color: #b71c1c;
+    color: white;
 }
 
 </style>

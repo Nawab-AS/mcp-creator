@@ -36,9 +36,8 @@ func (a *Common) StartBackend() {
 			if err := mcpserver.OnnxStartup(a); err != nil {
 				fmt.Printf("Error during ONNX Runtime startup: %v\n", err)
 			}
+			InitProjects()
 		}()
-
-		InitProjects()
 	})
 }
 

@@ -34,11 +34,13 @@ async function close(cancelled?: boolean) {
         </Transition>
         <Transition name="slide" appear>
             <div v-if="props.open" id="side-modal" @click.stop :class="{ flash: forcedOpen }">
-        <slot>No slot content</slot>
-        <span id="modal-actions">
-					<button @click.stop="close()" class="save">Save</button>
-					<button @click.stop="close(true)" class="cancel">Cancel</button>
-				</span>
+              <div id="slot">
+                <slot>No slot content</slot>
+              </div>
+              <span id="modal-actions">
+                <button @click.stop="close()" class="save">Save</button>
+                <button @click.stop="close(true)" class="cancel">Cancel</button>
+              </span>
             </div>
         </Transition>
     </Teleport>
@@ -55,6 +57,13 @@ async function close(cancelled?: boolean) {
     z-index: 1000;
 }
 
+#slot {
+  height: 420px;
+  width: 300px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 
 #side-modal {
     position: fixed;

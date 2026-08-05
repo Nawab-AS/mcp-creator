@@ -90,6 +90,20 @@ func (s *Server) Close() error {
 	return nil
 }
 
+func (s *Server) Delete() error {
+	if err := s.Close(); err != nil {
+		return err
+	}
+	projectDir, projectDB, err := common.ProjectDBPath(s.name)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(filepath.Join(projectDir, projectDB)); err != nil {
+		return fmt.Errorf("error deleting vector database: %w", err)
+	}
+	return nil
+}
+
 func ScrappableFile(filePath string) (bool, error) {
 	if exists, err := common.FsExists(filePath, false); err != nil {
 		return false, fmt.Errorf("error checking if file exists: %w", err)
@@ -388,6 +402,7 @@ func (s *Server) IndexDir(dirPath string) error {
 	}
 
 	common.EmitEvent("completed", "project-index", s.name)
+	fmt.Printf("Indexed dir `%s`", dirPath)
 	return nil
 }
 
