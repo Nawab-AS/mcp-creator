@@ -369,7 +369,11 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 		return Response{500, fmt.Sprintf("Error starting server for project %s: %v", name, err)}
 	}
 	servers[name] = server
-	a.ReindexProject(name)
+	go func() {
+		if err := a.ReindexProject(name); err != nil {
+			fmt.Printf("Error indexing project %s: %v\n", name, err)
+		}
+	}()
 	fmt.Printf("Created Project `%s` at path `%s` with model `%s` and port `%d`\n", name, path, model, port)
 
 	return Response{201, "Project created successfully"}

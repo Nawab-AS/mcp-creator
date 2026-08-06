@@ -21,6 +21,8 @@ type CommonFuncs interface {
 	ModelStorageDirectory(modelName string) (string, error)
 	ProjectDBPath(projectName string) (string, string, error)
 	Hash(input string) string
+	ShowInfoDialog(message string)
+	Uninstall()
 }
 
 func OnnxStartup(commonFuncs CommonFuncs) error {
@@ -34,7 +36,8 @@ func OnnxStartup(commonFuncs CommonFuncs) error {
 
 	onnxBinaryName, err := getOnnxBinaryName()
 	if err != nil {
-		fmt.Println("Error determining onnxruntime binary name:", err)
+		common.ShowInfoDialog(err.Error())
+		common.Uninstall()
 		return err
 	}
 
@@ -52,10 +55,12 @@ func OnnxStartup(commonFuncs CommonFuncs) error {
 
 	start := time.Now().UnixNano()
 	ort.SetSharedLibraryPath(onnxBinaryPath)
-	e := ort.InitializeEnvironment()
-	if e != nil {
-		fmt.Printf("Error initializing the onnxruntime library: %v\n", e)
-		return e
+	if err := ort.InitializeEnvironment(); err != nil {
+		initErr := fmt.Errorf("error initializing the ONNX Runtime library: %w", err)
+		fmt.Println(initErr)
+		common.ShowInfoDialog(initErr.Error())
+		common.Uninstall()
+		return initErr
 	}
 	end := time.Now().UnixNano()
 	fmt.Printf("Time taken to load environment: %d ms\n", (end-start)/1e6)
@@ -84,11 +89,23 @@ func getOnnxBinaryName() (string, error) {
 	case "linux":
 		ending = "so"
 		os = "linux"
+		switch arch {
+		case "amd64":
+			arch = "x64"
+		case "arm64":
+			arch = "aarch64"
+		}
 	case "windows":
 		ending = "dll"
 		os = "win"
+		switch arch {
+		case "amd64":
+			arch = "x64"
+		case "386":
+			arch = "x86"
+		}
 	default:
-		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
 
 	name := fmt.Sprintf("onnxruntime-%s-%s.%s", os, arch, ending)
@@ -98,14 +115,13 @@ func getOnnxBinaryName() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("unsupported architecture: %s", name)
+	return "", fmt.Errorf("unsupported architecture %q on %s", runtime.GOARCH, runtime.GOOS)
 }
 
 func downloadOnnxRuntime(targetPath string) error {
 	common.EmitEvent("started", "onnxruntime-download")
 	onnxBinaryName, err := getOnnxBinaryName()
 	if err != nil {
-		fmt.Println("Error determining onnxruntime binary name:", err)
 		return err
 	}
 

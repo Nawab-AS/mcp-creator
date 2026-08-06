@@ -52,6 +52,19 @@ func (a *Common) CopyToClipboard(text string) {
 	rt.ClipboardSetText(a.ctx, text)
 }
 
+func (a *Common) ShowInfoDialog(message string) {
+	_, err := rt.MessageDialog(a.ctx, rt.MessageDialogOptions{
+		Type:          rt.InfoDialog,
+		Title:         "MCP Creator",
+		Message:       message,
+		Buttons:       []string{"OK"},
+		DefaultButton: "OK",
+	})
+	if err != nil {
+		fmt.Printf("Error showing information dialog: %v\n", err)
+	}
+}
+
 var exit bool
 
 func (a *Common) Uninstall() {

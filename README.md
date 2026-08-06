@@ -1,7 +1,7 @@
 # MCP Creator
 A simple app to create and host custom semantic search MCP servers.
 
-**NOTICE: currently, only MacOS version 12 (Monterey) is tested**
+**NOTICE: currently, only MacOS version 12 (Monterey) is tested, but it should work on (almost) every OS/arch**
 
 
 ## Intro
@@ -12,11 +12,33 @@ One of the main limitations with AI is its limited context window. While this is
 > The Algorithm user for this **semantic search** which means searching by meaning.
 > Basically, searching for 'atom splitting' will be the same results as 'nuclear fussion'. While this may
 > seem insignificant, it cuts token usage by a huge margin.
+> Currently, mcp-creator can only index text and markdown files
 
 Now that you know, it now seems obvious that it is extremely useful when searching large knowledgebases such
 as internal wikis, class notes (my inspiration), obsidian vaults, etc. However, to create these servers requires a significant amount of technical knowledge and energy.
 
 The aim of this project is to make it very simple to create these MCP servers on consumer-grade hardware and *especially* for non-technical people.
+
+
+## How to use:
+1) Go to the models page and download a model
+2) Go to the projects page > create project
+Select the model you downloaded and the folder you intend to share in the MCP server
+3) Head over the the home page while wait for the project to index
+4) Wait until it finishes indexing (This can take a while)
+5) Connect it to whatever AI client you want
+> Connection Details:
+> 
+> Transport: Streamable HTTP
+> URL: Click the URL displayed under your project in the home page to copy it. Or just type it out manually
+
+6) If you want to uninstall the app
+
+
+## Settings page
+If you click the gear icon, you will reach the settings page. Currently it only has 2 big buttons
+1) "Open Storage Directory" --> opens the directory containing all stored files if you like to poke around
+2) "Uninstall" --> deletes all saved data from disk and exits. Irreversible.
 
 ## Screenshots
 
@@ -93,10 +115,4 @@ Thats it! Amazing, am I right?
 
 
 ## AI disclosure
-I used AI for:
- - 20% of CSS (yes, I actually learned css. Mainly the complex areas)
- - 5% of HTML (its a vue template, its barely 50 lines)
- - 20% of JS (No comment)
- - 40% of golang (well its my first time writing golang)
-
-I used AI for researching, complex/confusing CSS rules (this includes cross-platform quirks), typescript types (i'm ok with typescript), and a good amount of backend golang.
+I used AI for researching, writing complex/confusing CSS rules (this includes cross-platform quirks), typescript types (i'm ok with typescript), and a good amount of backend golang (but less than 30%).

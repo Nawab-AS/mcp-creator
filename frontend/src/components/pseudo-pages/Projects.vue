@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, toRaw, watch } from 'vue'
+import { ref, onBeforeUnmount, onMounted, toRaw, watch } from 'vue'
 import SideModal from '../sideModal.vue'
 
 import { GetProjects, GetModels, ModifyProject, CreateProject, DeleteProject as DeleteProjectFunc, ReindexProject as ReindexProjectFunc, SelectDirDialog, GetAvailablePort } from '../../../wailsjs/go/main/App'
+import { EventsOn } from '../../../wailsjs/runtime/runtime'
 import type { backend } from '../../../wailsjs/go/models'
 
 const projects = ref<backend.Project[]>([])
@@ -12,7 +13,7 @@ onMounted(async () => await refreshProjects(false))
 
 async function refreshProjects(soft=true) {
     projects.value = await GetProjects()
-    models.value = await GetModels().then(models => models.filter(m => m.installed).map(m => m.name))
+    await refreshModels()
     if (soft) return
     projects.value.sort((a, b) => {
         if (a.star && !b.star) return -1
@@ -20,6 +21,22 @@ async function refreshProjects(soft=true) {
         return a.name.localeCompare(b.name)
     })
 }
+
+async function refreshModels() {
+    models.value = await GetModels().then(models => models.filter(m => m.installed).map(m => m.name))
+}
+
+const unsubscribeModelEvents = [
+    EventsOn("completed", (operation: string) => {
+        if (operation === "model-download" || operation === "model-delete") {
+            void refreshModels()
+        }
+    }),
+]
+
+onBeforeUnmount(() => {
+    unsubscribeModelEvents.forEach((unsubscribe) => unsubscribe())
+})
 
 function friendlyDate(dateString: string) {
     const date = new Date(dateString)

@@ -209,6 +209,10 @@ h2 {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.server-details code {
+    cursor: pointer;
+}
+
 .running-status {
     color: #a9dcae;
     font-size: 0.8rem;
