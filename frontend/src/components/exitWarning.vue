@@ -48,6 +48,10 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.exit-warning-host {
+    height: 0px;
+    width: 0px;
+}
 
 .modal-overlay {
     position: fixed;

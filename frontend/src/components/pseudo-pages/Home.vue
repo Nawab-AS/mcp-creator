@@ -71,7 +71,7 @@ function statusLabel(status?: number) {
                         <span class="running-status" :class="{ offline: project.status === 1 }">
                             <span class="status-dot"></span>{{ statusLabel(project.status) }}
                         </span>
-                        <code @click="CopyToClipboard(`http://localhost:${project.port}`)">SSE: http://localhost:{{ project.port }}</code>
+                        <code @click="CopyToClipboard(`http://localhost:${project.port}/mcp`)">Streamable HTTP: http://localhost:{{ project.port }}/mcp</code>
                     </div>
                 </article>
             </template>

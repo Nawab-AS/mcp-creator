@@ -23,8 +23,9 @@ import (
 type Server struct {
 	VectorDB
 	modelData
-	mcpServer       *mcp.Server
-	httpServer      *http.Server
+	mcpServer  *mcp.Server
+	httpServer *http.Server
+	serverMu   sync.Mutex
 	EmbeddingMargin int
 	name            string
 	dimensions      ModelDimensions
@@ -44,6 +45,10 @@ type searchResult struct {
 	Filename string  `json:"filename"`
 	Text     string  `json:"text"`
 	Distance float32 `json:"distance"`
+}
+
+type searchOutput struct {
+	Results []searchResult `json:"results" jsonschema:"The matching document chunks."`
 }
 
 type getChunkInput struct {
@@ -508,13 +513,20 @@ func (s *Server) StartServer(port int) error {
 		return fmt.Errorf("port must be between 1 and 65535")
 	}
 
+	s.serverMu.Lock()
+	defer s.serverMu.Unlock()
+
+	if s.httpServer != nil {
+		return fmt.Errorf("MCP server is already running")
+	}
+
 	projectsDir, projectName, err := common.ProjectDBPath(s.name)
 	if err != nil {
 		return fmt.Errorf("error getting project DB path: %w", err)
 	}
 	s.IndexDir(filepath.Join(projectsDir, projectName), false)
 
-	s.mcpServer = mcp.NewServer(&mcp.Implementation{
+	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:  s.name,
 		Title: s.name,
 		Description: fmt.Sprintf(`
@@ -533,28 +545,34 @@ Get the full text and source filename for an indexed chunk. useful when a retriv
 	Outputs: chunk_id, filename, text
 		`, s.name, "github.com/Nawab-as/mcp-creator"),
 	}, nil)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "search",
 		Description: "Search indexed document chunks for a query.",
 	}, s.searchTool)
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
+	mcp.AddTool(mcpServer, &mcp.Tool{
 		Name:        "get-chunk",
 		Description: "Get the full text and source filename for an indexed chunk.",
 	}, s.getChunkTool)
 
-	s.httpServer = &http.Server{
+	getServer := func(*http.Request) *mcp.Server { return mcpServer }
+	mcpHTTPHandler := mcp.NewStreamableHTTPHandler(getServer, nil)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", mcpHTTPHandler)
+
+	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: mcp.NewSSEHandler(func(*http.Request) *mcp.Server { return s.mcpServer }, nil),
+		Handler: mux,
 	}
 
-	listener, err := net.Listen("tcp", s.httpServer.Addr)
+	listener, err := net.Listen("tcp", httpServer.Addr)
 	if err != nil {
-		s.httpServer = nil
 		return fmt.Errorf("error starting MCP server: %w", err)
 	}
+	s.mcpServer = mcpServer
+	s.httpServer = httpServer
 
 	go func() {
-		if err := s.httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			fmt.Printf("MCP server stopped unexpectedly: %v\n", err)
 		}
 	}()
@@ -563,32 +581,33 @@ Get the full text and source filename for an indexed chunk. useful when a retriv
 }
 
 func (s *Server) StopServer() {
+	s.serverMu.Lock()
+	defer s.serverMu.Unlock()
+
 	if s.httpServer != nil {
 		_ = s.httpServer.Close()
 		s.httpServer = nil
 	}
-	if s.mcpServer != nil {
-		s.mcpServer = nil
-	}
+	s.mcpServer = nil
 }
 
-func (s *Server) searchTool(_ context.Context, _ *mcp.CallToolRequest, input searchInput) (*mcp.CallToolResult, []searchResult, error) {
+func (s *Server) searchTool(_ context.Context, _ *mcp.CallToolRequest, input searchInput) (*mcp.CallToolResult, searchOutput, error) {
 	if s.Paused {
-		return nil, nil, fmt.Errorf("server is currently processing data, please try again later")
+		return nil, searchOutput{}, fmt.Errorf("server is currently processing data, please try again later")
 	}
 	if strings.TrimSpace(input.Query) == "" {
-		return nil, nil, fmt.Errorf("query must not be empty")
+		return nil, searchOutput{}, fmt.Errorf("query must not be empty")
 	}
 	if input.TopK == 0 {
 		input.TopK = 5
 	}
 	if input.TopK < 0 {
-		return nil, nil, fmt.Errorf("top_k must be positive")
+		return nil, searchOutput{}, fmt.Errorf("top_k must be positive")
 	}
 
 	rows, err := s.HybridSearch(input.Query, input.TopK)
 	if err != nil {
-		return nil, nil, err
+		return nil, searchOutput{}, err
 	}
 
 	results := make([]searchResult, len(rows))
@@ -600,7 +619,7 @@ func (s *Server) searchTool(_ context.Context, _ *mcp.CallToolRequest, input sea
 			Distance: row.Distance,
 		}
 	}
-	return nil, results, nil
+	return nil, searchOutput{Results: results}, nil
 }
 
 func (s *Server) getChunkTool(_ context.Context, _ *mcp.CallToolRequest, input getChunkInput) (*mcp.CallToolResult, *getChunkResult, error) {
