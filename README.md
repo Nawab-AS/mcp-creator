@@ -30,6 +30,7 @@ Select the model you downloaded and the folder you intend to share in the MCP se
 > Connection Details:
 > 
 > Transport: Streamable HTTP
+>
 > URL: Click the URL displayed under your project in the home page to copy it. Or just type it out manually
 
 6) If you want to uninstall the app
