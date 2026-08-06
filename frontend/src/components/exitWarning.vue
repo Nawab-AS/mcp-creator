@@ -28,7 +28,6 @@ onUnmounted(() => {
 
 <template>
     <div class="exit-warning-host">
-        hello {{ showModal }}
         <Teleport to="#modals">
             <div v-if="showModal" class="modal-overlay" @click="handleCancel">
                 <div class="modal" @click.stop>
