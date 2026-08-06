@@ -54,4 +54,3 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 )
 
-// replace github.com/wailsapp/wails/v2 v2.12.0 => /Users/syeds/go/pkg/mod

@@ -9,16 +9,21 @@ on:
 env:
   CGO_ENABLED: "1"
   GO_VERSION: "1.25"
-  NODE_VERSION: "20"
+  NODE_VERSION: "22.22.3"
   WAILS_VERSION: "v2.12.0"
 
 jobs:
   build-macos:
     name: Build macOS (${{ matrix.goarch }})
-    runs-on: macos-latest
     strategy:
+      fail-fast: false
       matrix:
-        goarch: [arm64, amd64]
+        include:
+          - goarch: arm64
+            runner: macos-15
+          - goarch: amd64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +34,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Use absolute Wails build directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/mcp-creator-build"
+          cp build/appicon.png "$RUNNER_TEMP/mcp-creator-build/appicon.png"
+          node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
@@ -38,21 +49,24 @@ jobs:
 
       - name: Zip app bundle
         run: |
-          cd build/bin
+          cd "$RUNNER_TEMP/mcp-creator-build/bin"
           APP_DIR=$(ls -d *.app)
           ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "mcp-creator-darwin-${{ matrix.goarch }}.zip"
 
       - uses: actions/upload-artifact@v4
         with:
           name: mcp-creator-darwin-${{ matrix.goarch }}
-          path: build/bin/mcp-creator-darwin-${{ matrix.goarch }}.zip
+          path: ${{ runner.temp }}/mcp-creator-build/bin/mcp-creator-darwin-${{ matrix.goarch }}.zip
 
   build-windows:
     name: Build Windows (${{ matrix.goarch }})
-    runs-on: windows-latest
     strategy:
+      fail-fast: false
       matrix:
-        goarch: [amd64, arm64]
+        include:
+          - goarch: amd64
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,6 +78,29 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Install SQLite development header
+        shell: pwsh
+        run: |
+          $sqliteVersion = "3460100"
+          $archive = "sqlite-amalgamation-$sqliteVersion.zip"
+          Invoke-WebRequest "https://www.sqlite.org/2024/$archive" -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath .
+          $includePath = (Resolve-Path "sqlite-amalgamation-$sqliteVersion").Path
+          "CGO_CFLAGS=-I$includePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Prepare Windows build assets
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build/windows/icon.ico)) {
+            throw "build/windows/icon.ico is missing. Commit this file before creating the release tag."
+          }
+          $buildDir = Join-Path $env:RUNNER_TEMP "mcp-creator-windows-build"
+          $windowsDir = Join-Path $buildDir "windows"
+          New-Item -ItemType Directory -Force -Path $windowsDir | Out-Null
+          Copy-Item build/appicon.png (Join-Path $buildDir "appicon.png")
+          Copy-Item build/windows/icon.ico (Join-Path $windowsDir "icon.ico")
+          node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-windows-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
+
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
 
@@ -72,16 +109,18 @@ jobs:
 
       - name: Zip binary
         shell: pwsh
-        run: Compress-Archive -Path build/bin/mcp-creator.exe -DestinationPath build/bin/mcp-creator-windows-${{ matrix.goarch }}.zip
+        run: |
+          $binDir = Join-Path $env:RUNNER_TEMP "mcp-creator-windows-build/bin"
+          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "mcp-creator-windows-${{ matrix.goarch }}.zip")
 
       - uses: actions/upload-artifact@v4
         with:
           name: mcp-creator-windows-${{ matrix.goarch }}
-          path: build/bin/mcp-creator-windows-${{ matrix.goarch }}.zip
+          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/mcp-creator-windows-${{ matrix.goarch }}.zip
 
   build-linux:
     name: Build Linux (amd64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
