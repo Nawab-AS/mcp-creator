@@ -58,8 +58,9 @@ async function close(cancelled?: boolean) {
 }
 
 #slot {
-  height: 420px;
-  width: 300px;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 
   overflow-y: auto;
   overflow-x: hidden;
@@ -74,6 +75,9 @@ async function close(cancelled?: boolean) {
     background-color: #242424;
     color: white;
     padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     border: 1px solid transparent;
     border-radius: 20px 0 0 20px;
     z-index: 1001;
@@ -96,9 +100,8 @@ async function close(cancelled?: boolean) {
 
 
 #modal-actions {
-  position: absolute;
-  bottom: 20px;
-  left: 20px;
+  flex: 0 0 auto;
+  margin-top: 16px;
   display: flex;
   gap: 10px;
 }

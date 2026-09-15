@@ -1,6 +1,17 @@
 html {
     background-color: #1e1e1e;
     color: white;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+* {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+    display: none;
 }
 
 body {

@@ -332,7 +332,7 @@ async function createProjectModal() {
                 </details>
                 <p class="error" v-if="settingsModal.error && !settingsModal.error.startsWith('name: ') && !settingsModal.error.startsWith('path: ') && !settingsModal.error.startsWith('model: ') && !settingsModal.error.startsWith('port: ')">{{ settingsModal.error }}</p>
                 <br /><br />
-                <span v-if="settingsModal.type === 'Modify'" id="modal-actions">
+                <span v-if="settingsModal.type === 'Modify'" class="project-actions">
                     <button type="button" id="reindex" @click="ReindexProject(settingsModal.project.name)">Reindex</button>
                     <button type="button" id="delete" @click="DeleteProject(settingsModal.project.name)">Delete</button>
                 </span>
@@ -543,12 +543,14 @@ td.project-name>p.path {
     margin-top: 20vh;
 }
 
-#modal-actions {
+.project-actions {
     display: flex;
     gap: 10px;
+    margin-top: 16px;
+    padding-bottom: 12px;
 }
 
-#modal-actions > button {
+.project-actions > button {
 	padding: 5px 10px;
 	font-size: 1rem;
 	border: none;
