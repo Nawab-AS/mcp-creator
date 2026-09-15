@@ -53,14 +53,20 @@ const page = ref("home")
 <style scoped>
 #app {
     display: flex;
-    min-height: 100vh;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
     color: #eee;
 }
 
 #sidebar {
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
     height: 100vh;
     width: 200px;
     min-width: 200px;
+    flex: 0 0 200px;
 
     background-color: #242424;
     border-right: 1px solid #444;

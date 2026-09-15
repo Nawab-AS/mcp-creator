@@ -109,12 +109,12 @@ jobs:
         shell: pwsh
         run: |
           $binDir = Join-Path $env:RUNNER_TEMP "mcp-creator-windows-build/bin"
-          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "mcp-creator-windows-11.zip")
+          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "mcp-creator-windows-11-x64.zip")
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mcp-creator-windows-11
-          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/mcp-creator-windows-11.zip
+          name: mcp-creator-windows-11-x64
+          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/mcp-creator-windows-11-x64.zip
 
   release:
     name: Publish release

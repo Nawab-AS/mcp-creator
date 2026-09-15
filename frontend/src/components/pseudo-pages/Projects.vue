@@ -370,7 +370,7 @@ async function createProjectModal() {
 }
 
 #project-settings {
-    width: 300px;
+    width: 100%;
 }
 
 #project-name {
@@ -378,7 +378,7 @@ async function createProjectModal() {
     border: 1px solid #454545;
     border-radius: 5px;
     padding: 5px 10px;
-    width: calc(100% - 30px);
+    width: 100%;
     margin-top: 10px;
     font-size: 0.8rem;
     color: white;
@@ -393,6 +393,7 @@ async function createProjectModal() {
 
 #project-path input {
     flex: 1;
+    min-width: 0;
     outline: none;
     direction: rtl;
     text-align: left;
@@ -425,7 +426,7 @@ async function createProjectModal() {
     border: 1px solid #454545;
     border-radius: 5px;
     padding: 5px 10px;
-    width: calc(100% - 30px);
+    width: 100%;
     font-size: 0.8rem;
     color: white;
     background-color: #242424;

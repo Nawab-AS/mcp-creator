@@ -68,10 +68,10 @@ async function close(cancelled?: boolean) {
 
 #side-modal {
     position: fixed;
-    top: -1px;
+    top: 0;
     right: 0;
     width: 300px;
-    height: calc(100vh - 40px - 2px);
+    height: 100vh;
     background-color: #242424;
     color: white;
     padding: 20px;

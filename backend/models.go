@@ -137,15 +137,6 @@ var models = []Model{
 		TokenizerURL: "https://huggingface.co/Snowflake/snowflake-arctic-embed-xs/resolve/main/tokenizer.json",
 		SizeMB:       23.71,
 	},
-	{
-		Name:        "Cescofors75/baco-embeddings",
-		Description: "Ultra-lightweight extreme efficiency model. Sub-millisecond execution times designed specifically for weak hardware.",
-		Installed:   false,
-
-		OnnxURL:      "https://huggingface.co/Cescofors75/baco-embeddings/resolve/main/onnx/fine_tuned_model.onnx",
-		TokenizerURL: "https://huggingface.co/Cescofors75/baco-embeddings/resolve/main/tokenizer.json",
-		SizeMB:       1.13,
-	},
 }
 
 func (a *Models) DownloadModel(modelName string) {
