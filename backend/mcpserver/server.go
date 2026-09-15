@@ -23,9 +23,9 @@ import (
 type Server struct {
 	VectorDB
 	modelData
-	mcpServer  *mcp.Server
-	httpServer *http.Server
-	serverMu   sync.Mutex
+	mcpServer       *mcp.Server
+	httpServer      *http.Server
+	serverMu        sync.Mutex
 	EmbeddingMargin int
 	name            string
 	dimensions      ModelDimensions
@@ -93,10 +93,10 @@ func NewServer(projectName string, modelName string) (*Server, error) {
 }
 
 func (s *Server) Close() error {
+	s.StopIndexing()
 	if err := s.VectorDB.Close(); err != nil {
 		return fmt.Errorf("error closing vector database: %w", err)
 	}
-	s.StopIndexing()
 	s.StopServer()
 	return nil
 }
@@ -136,7 +136,7 @@ func textContent(filePath string) (string, error) {
 		return "", fmt.Errorf("file is not scrappable: %s", filePath)
 	}
 
-	switch filepath.Ext(filePath) {
+	switch strings.ToLower(filepath.Ext(filePath)) {
 	case ".md": // LLMs natively support markdown, just read is text
 		fallthrough
 	case ".txt": //text file
@@ -236,9 +236,13 @@ func (s *Server) addFile(ctx context.Context, tx *sql.Tx, filePath string, onPro
 		return fmt.Errorf("error removing existing file entries: %w", err)
 	}
 	setProgress(0.25)
-	tokens, err := s.modelData.Tokenize(text)
+	encoding, err := s.modelData.Tokenizer.Tokenizer.EncodeSingle(text, true)
 	if err != nil {
 		return fmt.Errorf("error tokenizing text: %w", err)
+	}
+	tokens := make([]int32, len(encoding.Ids))
+	for index, id := range encoding.Ids {
+		tokens[index] = int32(id)
 	}
 	// fmt.Printf("Tokenized text into %d tokens\n", len(tokens))
 
@@ -264,7 +268,7 @@ func (s *Server) addFile(ctx context.Context, tx *sql.Tx, filePath string, onPro
 		row := make([]int32, chunkSize)
 		copy(row, chunkTokens)
 		rows = append(rows, row)
-		chunkText = append(chunkText, s.modelData.Tokenizer.Decode(chunkTokens))
+		chunkText = append(chunkText, sourceChunkText(text, encoding.Offsets[start:end], chunkTokens, s.modelData.Tokenizer))
 	}
 	setProgress(0.45)
 	// fmt.Printf("Split text into %d chunks of up to %d tokens with %d-token overlap\n", len(rows), chunkSize, chunkSize-step)
@@ -306,6 +310,26 @@ func (s *Server) addFile(ctx context.Context, tx *sql.Tx, filePath string, onPro
 	setProgress(1)
 	onProgress(1)
 	return nil
+}
+
+func sourceChunkText(source string, offsets [][]int, tokens []int32, tokenizer Tokenizer) string {
+	start := -1
+	end := -1
+	for _, offset := range offsets {
+		if len(offset) < 2 || offset[0] == offset[1] {
+			continue
+		}
+		if start == -1 || offset[0] < start {
+			start = offset[0]
+		}
+		if offset[1] > end {
+			end = offset[1]
+		}
+	}
+	if start >= 0 && end <= len(source) && start < end {
+		return source[start:end]
+	}
+	return tokenizer.Decode(tokens)
 }
 
 func (s *Server) removeFile(tx *sql.Tx, filePath string) error {
@@ -519,12 +543,6 @@ func (s *Server) StartServer(port int) error {
 	if s.httpServer != nil {
 		return fmt.Errorf("MCP server is already running")
 	}
-
-	projectsDir, projectName, err := common.ProjectDBPath(s.name)
-	if err != nil {
-		return fmt.Errorf("error getting project DB path: %w", err)
-	}
-	s.IndexDir(filepath.Join(projectsDir, projectName), false)
 
 	mcpServer := mcp.NewServer(&mcp.Implementation{
 		Name:  s.name,

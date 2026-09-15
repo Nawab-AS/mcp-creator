@@ -69,10 +69,15 @@ var exit bool
 
 func (a *Common) Uninstall() {
 	exit = true
-	for i := range projects {
-		project := &projects[i]
-		DeleteProject(project.Name)
+	defer rt.Quit(a.ctx)
+
+	for name, server := range servers {
+		if err := server.Close(); err != nil {
+			fmt.Printf("Error stopping project %s: %v\n", name, err)
+		}
 	}
+	servers = map[string]*mcpserver.Server{}
+	projects = nil
 
 	configPath, err := GetConfigPath()
 	if err != nil {
@@ -83,10 +88,7 @@ func (a *Common) Uninstall() {
 	err = os.RemoveAll(configPath)
 	if err != nil {
 		fmt.Printf("Error removing config directory: %v\n", err)
-		return
 	}
-
-	rt.Quit(a.ctx)
 }
 
 func (a *Common) BeforeClose(ctx context.Context) (prevent bool) {
@@ -256,12 +258,19 @@ func (m *Common) DownloadFile(sourceURL string, targetPath string, onProgress fu
 		return fmt.Errorf("download %s: unexpected status %s", sourceURL, response.Status)
 	}
 
-	file, err := os.Create(targetPath)
+	temporaryFile, err := os.CreateTemp(filepath.Dir(targetPath), ".download-*")
 	if err != nil {
-		return fmt.Errorf("create %s: %w", targetPath, err)
+		return fmt.Errorf("create temporary download for %s: %w", targetPath, err)
 	}
+	temporaryPath := temporaryFile.Name()
+	removeTemporary := true
+	defer func() {
+		if removeTemporary {
+			os.Remove(temporaryPath)
+		}
+	}()
 
-	writer := &countingWriter{writer: file}
+	writer := &countingWriter{writer: temporaryFile}
 	stopProgress := make(chan struct{})
 	progressDone := make(chan struct{})
 	go func() {
@@ -284,13 +293,26 @@ func (m *Common) DownloadFile(sourceURL string, targetPath string, onProgress fu
 	_, copyErr := io.Copy(writer, response.Body)
 	close(stopProgress)
 	<-progressDone
-	closeErr := file.Close()
+	closeErr := temporaryFile.Close()
 	if copyErr != nil {
 		return fmt.Errorf("write %s: %w", targetPath, copyErr)
 	}
 	if closeErr != nil {
 		return fmt.Errorf("close %s: %w", targetPath, closeErr)
 	}
+	if err := os.Rename(temporaryPath, targetPath); err != nil {
+		if runtime.GOOS == "windows" {
+			if removeErr := os.Remove(targetPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+				return fmt.Errorf("replace %s: %w", targetPath, removeErr)
+			}
+			if renameErr := os.Rename(temporaryPath, targetPath); renameErr != nil {
+				return fmt.Errorf("replace %s: %w", targetPath, renameErr)
+			}
+		} else {
+			return fmt.Errorf("replace %s: %w", targetPath, err)
+		}
+	}
+	removeTemporary = false
 
 	onProgress(1)
 	return nil

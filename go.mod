@@ -8,7 +8,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/sugarme/tokenizer v0.3.0
 	github.com/wailsapp/wails/v2 v2.12.0
-	github.com/yalue/onnxruntime_go v1.8.0
+	github.com/yalue/onnxruntime_go v1.36.0
 )
 
 require (
@@ -53,4 +53,3 @@ require (
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
-

@@ -120,13 +120,13 @@ var models = []Model{
 		SizeMB:       18.21,
 	},
 	{
-		Name:        "Granite-embedding-small-english-r2-ONNX (quantized)",
-		Description: "IBM's ultra-compact enterprise model. Highly optimized for handling code snippets and structured technical logs.",
+		Name:        "mxbai-embed-xsmall-v1 (quantized)",
+		Description: "A compact, efficient embedding model for semantic search with low resource usage.",
 		Installed:   false,
 
-		OnnxURL:      "https://huggingface.co/onnx-community/granite-embedding-small-english-r2-ONNX/resolve/main/onnx/model_quantized.onnx",
-		TokenizerURL: "https://huggingface.co/onnx-community/granite-embedding-small-english-r2-ONNX/resolve/main/tokenizer.json",
-		SizeMB:       2.73,
+		OnnxURL:      "https://huggingface.co/mixedbread-ai/mxbai-embed-xsmall-v1/resolve/main/onnx/model_quantized.onnx",
+		TokenizerURL: "https://huggingface.co/mixedbread-ai/mxbai-embed-xsmall-v1/resolve/main/tokenizer.json",
+		SizeMB:       25.11,
 	},
 	{
 		Name:        "Snowflake-arctic-embed-xs (quantized)",

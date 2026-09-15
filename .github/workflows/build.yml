@@ -21,8 +21,6 @@ jobs:
         include:
           - goarch: arm64
             runner: macos-15
-          - goarch: amd64
-            runner: macos-15-intel
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -51,12 +49,12 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/mcp-creator-build/bin"
           APP_DIR=$(ls -d *.app)
-          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "mcp-creator-darwin-${{ matrix.goarch }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "mcp-creator-mac-silicon.zip"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mcp-creator-darwin-${{ matrix.goarch }}
-          path: ${{ runner.temp }}/mcp-creator-build/bin/mcp-creator-darwin-${{ matrix.goarch }}.zip
+          name: mcp-creator-mac-silicon
+          path: ${{ runner.temp }}/mcp-creator-build/bin/mcp-creator-mac-silicon.zip
 
   build-windows:
     name: Build Windows (${{ matrix.goarch }})
@@ -111,52 +109,16 @@ jobs:
         shell: pwsh
         run: |
           $binDir = Join-Path $env:RUNNER_TEMP "mcp-creator-windows-build/bin"
-          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "mcp-creator-windows-${{ matrix.goarch }}.zip")
+          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "mcp-creator-windows-11.zip")
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mcp-creator-windows-${{ matrix.goarch }}
-          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/mcp-creator-windows-${{ matrix.goarch }}.zip
-
-  build-linux:
-    name: Build Linux (amd64)
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install GTK3 / WebKit2GTK development libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
-
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
-
-      - name: Build
-        run: wails build -platform linux/amd64 -clean -tags webkit2_41
-
-      - name: Package binary
-        run: |
-          cd build/bin
-          chmod +x mcp-creator
-          tar -czf mcp-creator-linux-amd64.tar.gz mcp-creator
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mcp-creator-linux-amd64
-          path: build/bin/mcp-creator-linux-amd64.tar.gz
+          name: mcp-creator-windows-11
+          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/mcp-creator-windows-11.zip
 
   release:
     name: Publish release
-    needs: [build-macos, build-windows, build-linux]
+    needs: [build-macos, build-windows]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:

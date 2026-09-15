@@ -1,6 +1,6 @@
 <!-- /components/Selector.vue -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 
 // consts (TODO: move to props)
@@ -50,20 +50,25 @@ function onClick(option: string, now: boolean = false) {
 }
 
 
+let animationTimer: number | undefined
+
 onMounted(() => {
   onClick(props.options[0], true)
+
+  animationTimer = window.setInterval(() => {
+    if (Math.abs(bar.value.current_left - bar.value.left) <= speed) {
+      bar.value.current_left = bar.value.left
+    } else if (bar.value.current_left < bar.value.left) {
+      bar.value.current_left += speed
+    } else if (bar.value.current_left > bar.value.left) {
+      bar.value.current_left -= speed
+    }
+  }, 10)
 })
 
-// move bar
-setInterval(() => {
-  if (Math.abs(bar.value.current_left - bar.value.left) <= speed) {
-    bar.value.current_left = bar.value.left
-  } else if (bar.value.current_left < bar.value.left) {
-    bar.value.current_left += speed
-  } else if (bar.value.current_left > bar.value.left) {
-    bar.value.current_left -= speed
-  }
-}, 10)
+onUnmounted(() => {
+  if (animationTimer !== undefined) window.clearInterval(animationTimer)
+})
 
 </script>
 

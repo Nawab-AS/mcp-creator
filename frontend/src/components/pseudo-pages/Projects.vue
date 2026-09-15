@@ -330,6 +330,7 @@ async function createProjectModal() {
                         <p class="error" v-if="settingsModal.error.startsWith('port: ')">{{ settingsModal.error.slice('port: '.length) }}</p>
                     </div>
                 </details>
+                <p class="error" v-if="settingsModal.error && !settingsModal.error.startsWith('name: ') && !settingsModal.error.startsWith('path: ') && !settingsModal.error.startsWith('model: ') && !settingsModal.error.startsWith('port: ')">{{ settingsModal.error }}</p>
                 <br /><br />
                 <span v-if="settingsModal.type === 'Modify'" id="modal-actions">
                     <button type="button" id="reindex" @click="ReindexProject(settingsModal.project.name)">Reindex</button>

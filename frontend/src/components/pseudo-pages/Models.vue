@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { EventsOn } from "../../../wailsjs/runtime/runtime";
 
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import Sections from '../Selector.vue'
 
 // backend imports
@@ -12,21 +12,30 @@ import type { backend } from '../../../wailsjs/go/models'
 // fetch models list
 const models = ref<backend.Model[]>([])
 const bufferedModels = ref(new Map<string, "Downloading" | "Deleting" | "Available" | "Installed">());
+const eventCleanups: Array<() => void> = []
+
 onMounted(async () => {
     models.value = await GetModels()
+
+    eventCleanups.push(
+        EventsOn("started", (operation: string, modelName: string) => {
+            if (operation === 'model-download') bufferedModels.value.set(modelName, 'Downloading')
+            if (operation === 'model-delete') bufferedModels.value.set(modelName, 'Deleting')
+        }),
+        EventsOn("completed", (operation: string, modelName: string) => {
+            if (operation === 'model-download') bufferedModels.value.set(modelName, 'Installed')
+            if (operation === 'model-delete') bufferedModels.value.set(modelName, 'Available')
+        }),
+        EventsOn("error", (operation: string, modelName: string) => {
+            const model = models.value.find((item) => item.name === modelName)
+            if (!model) return
+            bufferedModels.value.set(modelName, model.installed ? 'Installed' : 'Available')
+        }),
+    )
 })
 
-EventsOn("model-download-started", (modelName: string) => {
-    bufferedModels.value.set(modelName, 'Downloading')
-})
-EventsOn("model-download-completed", (modelName: string) => {
-    bufferedModels.value.set(modelName, 'Installed')
-})
-EventsOn("model-delete-started", (modelName: string) => {
-    bufferedModels.value.set(modelName, 'Deleting')
-})
-EventsOn("model-delete-completed", (modelName: string) => {
-    bufferedModels.value.set(modelName, 'Available')
+onUnmounted(() => {
+    eventCleanups.forEach((cleanup) => cleanup())
 })
 
 

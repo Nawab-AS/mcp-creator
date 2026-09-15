@@ -90,6 +90,10 @@ export function SelectDirDialog(arg1) {
   return window['go']['main']['App']['SelectDirDialog'](arg1);
 }
 
+export function ShowInfoDialog(arg1) {
+  return window['go']['main']['App']['ShowInfoDialog'](arg1);
+}
+
 export function StartBackend() {
   return window['go']['main']['App']['StartBackend']();
 }

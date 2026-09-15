@@ -345,7 +345,7 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 		return Response{400, "path: Folder does not exist"}
 	}
 
-	projects = append(projects, Project{
+	project := Project{
 		Name:         name,
 		Path:         path,
 		Star:         false,
@@ -353,10 +353,6 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 		Status:       StatusStarting,
 		ModelUsed:    model,
 		Port:         port,
-	})
-
-	if err := writeSaveFile_projects(); err != nil {
-		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
 	}
 
 	server, err := mcpserver.NewServer(name, model)
@@ -367,6 +363,13 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 	if err := server.StartServer(port); err != nil {
 		fmt.Printf("Error starting server for project %s: %v\n", name, err)
 		return Response{500, fmt.Sprintf("Error starting server for project %s: %v", name, err)}
+	}
+
+	projects = append(projects, project)
+	if err := writeSaveFile_projects(); err != nil {
+		_ = server.Delete()
+		projects = projects[:len(projects)-1]
+		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
 	}
 	servers[name] = server
 	go func() {

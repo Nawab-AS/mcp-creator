@@ -1,17 +1,23 @@
 package mcpserver
 
-// cross-platform is not for now. rn its only intel-based macs with versions 12
-
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	ort "github.com/yalue/onnxruntime_go"
 )
 
 var common CommonFuncs
+
+const onnxRuntimeVersion = "1.30.0"
 
 type CommonFuncs interface {
 	GetConfigPath() (string, error)
@@ -68,54 +74,14 @@ func OnnxStartup(commonFuncs CommonFuncs) error {
 }
 
 func getOnnxBinaryName() (string, error) {
-	supportedLibraries := []string{
-		"onnxruntime-linux-aarch64.so",
-		"onnxruntime-linux-x64.so",
-		"onnxruntime-osx-arm64.dylib",
-		"onnxruntime-osx-x86_64.dylib",
-		"onnxruntime-win-arm.dll",
-		"onnxruntime-win-arm64.dll",
-		"onnxruntime-win-x64.dll",
-		"onnxruntime-win-x86.dll",
-	}
-	ending, os, arch := "", "", runtime.GOARCH
-	switch runtime.GOOS {
-	case "darwin":
-		ending = "dylib"
-		os = "osx"
-		if arch == "amd64" {
-			arch = "x86_64"
-		}
-	case "linux":
-		ending = "so"
-		os = "linux"
-		switch arch {
-		case "amd64":
-			arch = "x64"
-		case "arm64":
-			arch = "aarch64"
-		}
-	case "windows":
-		ending = "dll"
-		os = "win"
-		switch arch {
-		case "amd64":
-			arch = "x64"
-		case "386":
-			arch = "x86"
-		}
+	switch {
+	case runtime.GOOS == "windows" && runtime.GOARCH == "amd64":
+		return "onnxruntime-win-x64-" + onnxRuntimeVersion + ".dll", nil
+	case runtime.GOOS == "darwin" && runtime.GOARCH == "arm64":
+		return "onnxruntime-osx-arm64-" + onnxRuntimeVersion + ".dylib", nil
 	default:
-		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+		return "", fmt.Errorf("unsupported platform %s/%s; supported platforms are windows/amd64 and darwin/arm64", runtime.GOOS, runtime.GOARCH)
 	}
-
-	name := fmt.Sprintf("onnxruntime-%s-%s.%s", os, arch, ending)
-	for _, lib := range supportedLibraries {
-		if lib == name {
-			return name, nil
-		}
-	}
-
-	return "", fmt.Errorf("unsupported architecture %q on %s", runtime.GOARCH, runtime.GOOS)
 }
 
 func downloadOnnxRuntime(targetPath string) error {
@@ -125,9 +91,15 @@ func downloadOnnxRuntime(targetPath string) error {
 		return err
 	}
 
-	downloadURL := fmt.Sprintf("https://github.com/Nawab-AS/legacy-onnx-runtimes/raw/refs/heads/main/%s", onnxBinaryName)
+	archiveName := "onnxruntime-win-x64-" + onnxRuntimeVersion + ".zip"
+	if runtime.GOOS == "darwin" {
+		archiveName = "onnxruntime-osx-arm64-" + onnxRuntimeVersion + ".tgz"
+	}
+	downloadURL := fmt.Sprintf("https://github.com/microsoft/onnxruntime/releases/download/v%s/%s", onnxRuntimeVersion, archiveName)
+	archivePath := targetPath + ".archive"
+	defer os.Remove(archivePath)
 
-	err = common.DownloadFile(downloadURL, targetPath, func(progress float32) {
+	err = common.DownloadFile(downloadURL, archivePath, func(progress float32) {
 		common.EmitEvent("progress", "onnxruntime-download", progress)
 	})
 
@@ -135,8 +107,103 @@ func downloadOnnxRuntime(targetPath string) error {
 		common.EmitEvent("error", "onnxruntime-download", "Network error")
 		return err
 	}
+	if err := extractRuntime(archivePath, targetPath, onnxBinaryName); err != nil {
+		common.EmitEvent("error", "onnxruntime-download", "Invalid runtime archive")
+		return err
+	}
 
 	common.EmitEvent("completed", "onnxruntime-download")
 
 	return nil
+}
+
+func extractRuntime(archivePath string, targetPath string, binaryName string) error {
+	if runtime.GOOS == "windows" {
+		return extractWindowsRuntime(archivePath, targetPath)
+	}
+	return extractDarwinRuntime(archivePath, targetPath, binaryName)
+}
+
+func extractWindowsRuntime(archivePath string, targetPath string) error {
+	archive, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return fmt.Errorf("open ONNX Runtime archive: %w", err)
+	}
+	defer archive.Close()
+
+	for _, file := range archive.File {
+		name := filepath.ToSlash(file.Name)
+		if !strings.HasSuffix(name, "/lib/onnxruntime.dll") && !strings.HasSuffix(name, "/lib/onnxruntime_providers_shared.dll") {
+			continue
+		}
+		outputName := filepath.Base(name)
+		if outputName == "onnxruntime.dll" {
+			outputName = filepath.Base(targetPath)
+		}
+		if err := extractZipFile(file, filepath.Join(filepath.Dir(targetPath), outputName)); err != nil {
+			return err
+		}
+	}
+	if _, err := os.Stat(targetPath); err != nil {
+		return fmt.Errorf("ONNX Runtime DLL was not found in archive: %w", err)
+	}
+	return nil
+}
+
+func extractZipFile(file *zip.File, targetPath string) error {
+	input, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	output, err := os.Create(targetPath)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", targetPath, err)
+	}
+	if _, err := io.Copy(output, input); err != nil {
+		output.Close()
+		return fmt.Errorf("extract %s: %w", targetPath, err)
+	}
+	return output.Close()
+}
+
+func extractDarwinRuntime(archivePath string, targetPath string, binaryName string) error {
+	archiveFile, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer archiveFile.Close()
+	gzipReader, err := gzip.NewReader(archiveFile)
+	if err != nil {
+		return fmt.Errorf("open ONNX Runtime archive: %w", err)
+	}
+	defer gzipReader.Close()
+
+	reader := tar.NewReader(gzipReader)
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("read ONNX Runtime archive: %w", err)
+		}
+		if !strings.HasSuffix(header.Name, "/lib/libonnxruntime.1."+onnxRuntimeVersion+".dylib") {
+			continue
+		}
+		output, err := os.Create(targetPath)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(output, reader); err != nil {
+			output.Close()
+			return err
+		}
+		if err := output.Close(); err != nil {
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("%s was not found in archive", binaryName)
 }
