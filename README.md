@@ -30,8 +30,6 @@ Select the model you downloaded and the folder you intend to share in the MCP se
 >
 > URL: Click the URL displayed under your project in the home page to copy it. Or just type it out manually
 
-6) If you want to uninstall the app
-
 
 ## Settings page
 If you click the gear icon, you will reach the settings page. Currently it only has 2 big buttons
