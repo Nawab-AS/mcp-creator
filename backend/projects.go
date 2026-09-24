@@ -80,24 +80,30 @@ func (a *Common) InitProjects() {
 	for _, project := range getProjects() {
 		// create a server for each project
 		go func(proj Project) {
-			editStatus(proj.Name, StatusStarting)
+			_ = editStatus(proj.Name, StatusStarting)
 			server, err := mcpserver.NewServer(proj.Name, proj.ModelUsed)
 			if err != nil {
 				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
+				_ = editStatus(proj.Name, StatusOffline)
 				return
 			}
 			servers[proj.Name] = server
 
-			projectsDir, projectName, err := ProjectDBPath(proj.Name)
-			if err != nil {
-				fmt.Printf("Error getting project DB path for project %s: %v\n", proj.Name, err)
+			if err := server.IndexDir(proj.Path, false); err != nil {
+				fmt.Printf("Error indexing project %s: %v\n", proj.Name, err)
+				_ = server.Close()
+				delete(servers, proj.Name)
+				_ = editStatus(proj.Name, StatusOffline)
 				return
 			}
-			server.IndexDir(filepath.Join(projectsDir, projectName), false)
 			if err := server.StartServer(proj.Port); err != nil {
 				fmt.Printf("Error starting server for project %s: %v\n", proj.Name, err)
+				_ = server.Close()
+				delete(servers, proj.Name)
+				_ = editStatus(proj.Name, StatusOffline)
+				return
 			}
-			editStatus(proj.Name, StatusOnline)
+			_ = editStatus(proj.Name, StatusOnline)
 		}(project)
 	}
 }
@@ -438,7 +444,9 @@ func (a *Projects) DeleteProject(projectName string) Response {
 	}
 
 	if server, exists := servers[projectName]; exists {
-		server.Delete()
+		if err := server.Delete(); err != nil {
+			return Response{500, fmt.Sprintf("Error deleting project database: %s", err.Error())}
+		}
 		delete(servers, projectName)
 	}
 

@@ -130,7 +130,7 @@ func (vdb *VectorDB) openVectorDB(dbPath string) (*VectorDB, error) {
 		db.Close()
 		return nil, err
 	}
-	if _, err := db.Exec("PRAGMA busy_timeout = 120;"); err != nil {
+	if _, err := db.Exec("PRAGMA busy_timeout = 5000;"); err != nil {
 		db.Close()
 		return nil, err
 	}

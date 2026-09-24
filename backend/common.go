@@ -33,6 +33,12 @@ func (a *Common) Startup(ctx context.Context) {
 	rt.EventsOn(ctx, "exit-ack", func(optionalData ...interface{}) {
 		fmt.Println("Received exit-ack event, quitting...")
 		exit = true
+		for name, server := range servers {
+			if err := server.Close(); err != nil {
+				fmt.Printf("Error stopping project %s: %v\n", name, err)
+			}
+		}
+		servers = map[string]*mcpserver.Server{}
 		rt.Quit(ctx)
 	})
 }
@@ -42,6 +48,7 @@ func (a *Common) StartBackend() {
 		go func() {
 			if err := mcpserver.OnnxStartup(a); err != nil {
 				fmt.Printf("Error during ONNX Runtime startup: %v\n", err)
+				return
 			}
 			a.InitProjects()
 		}()

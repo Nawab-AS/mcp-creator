@@ -363,6 +363,37 @@ func (s *Server) removeFile(tx *sql.Tx, filePath string) error {
 	return nil
 }
 
+func (s *Server) removeMissingFiles(tx *sql.Tx, files map[string]int64) error {
+	rows, err := tx.Query(`SELECT DISTINCT filename FROM documents;`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var existingFiles []string
+	for rows.Next() {
+		var filename string
+		if err := rows.Scan(&filename); err != nil {
+			return err
+		}
+		existingFiles = append(existingFiles, filename)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+
+	for _, filename := range existingFiles {
+		if _, exists := files[filename]; exists {
+			continue
+		}
+		if err := s.removeFile(tx, filename); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) beginIndexing() (context.Context, error) {
 	s.indexMu.Lock()
 	defer s.indexMu.Unlock()
@@ -442,16 +473,14 @@ func (s *Server) IndexDir(dirPath string, force bool) error {
 	}
 	// fmt.Printf("Total size of files to index: %d bytes\n", totalSize)
 
-	// If there's nothing to do, emit completed and return
-	if (totalSize == 0 || len(files) == 0) && !force { // force just adds a UI notification
-		return nil
-	}
-
 	tx, err := s.VectorDB.Begin()
 	if err != nil {
 		return fmt.Errorf("error starting index transaction: %w", err)
 	}
 	defer tx.Rollback()
+	if err := s.removeMissingFiles(tx, files); err != nil {
+		return fmt.Errorf("error removing deleted files: %w", err)
+	}
 
 	// Process files in deterministic order
 	paths := make([]string, 0, len(files))
@@ -621,6 +650,9 @@ func (s *Server) searchTool(_ context.Context, _ *mcp.CallToolRequest, input sea
 	}
 	if input.TopK < 0 {
 		return nil, searchOutput{}, fmt.Errorf("top_k must be positive")
+	}
+	if input.TopK > 100 {
+		return nil, searchOutput{}, fmt.Errorf("top_k must not exceed 100")
 	}
 
 	rows, err := s.HybridSearch(input.Query, input.TopK)

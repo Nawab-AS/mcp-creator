@@ -12,7 +12,7 @@ import (
 )
 
 type Tokenizer struct {
-	Tokenizer          *tokenizer.Tokenizer
+	Tokenizer         *tokenizer.Tokenizer
 	MaxSequenceLength int
 }
 
@@ -35,7 +35,7 @@ func LoadTokenizer(tokenizer_path string) (*Tokenizer, error) {
 	}
 	t.WithTruncation(nil)
 	return &Tokenizer{
-		Tokenizer:          t,
+		Tokenizer:         t,
 		MaxSequenceLength: maxSequenceLength,
 	}, nil
 }
@@ -238,6 +238,8 @@ func buildBatchInputTensor(info ort.InputOutputInfo, shape ort.Shape, inputIds, 
 		return ort.NewTensor(shape, data)
 	case ort.TensorElementDataTypeInt32:
 		return ort.NewTensor(shape, data)
+	case ort.TensorElementDataTypeFloat:
+		return ort.NewTensor(shape, convertToFloat32(data))
 	default:
 		return nil, fmt.Errorf("unsupported input tensor type %s for %s", info.DataType.String(), info.Name)
 	}
@@ -269,6 +271,8 @@ func (m *modelData) run(inputs []ort.ArbitraryTensor) ([]ort.ArbitraryTensor, er
 	defer session.Destroy()
 
 	inputs64 := make([]ort.ArbitraryTensor, len(inputs))
+	convertedInputs := make([]ort.ArbitraryTensor, 0, len(inputs))
+	defer destroyTensors(convertedInputs)
 	for i, input := range inputs {
 		switch tensor := input.(type) {
 		case *ort.Tensor[int32]:
@@ -276,6 +280,7 @@ func (m *modelData) run(inputs []ort.ArbitraryTensor) ([]ort.ArbitraryTensor, er
 			if err != nil {
 				return nil, err
 			}
+			convertedInputs = append(convertedInputs, inputs64[i])
 		default:
 			inputs64[i] = input
 		}
@@ -426,6 +431,8 @@ func buildInputTensor(info ort.InputOutputInfo, tokenIds []int32) (ort.Arbitrary
 		return ort.NewTensor(shape, data)
 	case ort.TensorElementDataTypeInt32:
 		return ort.NewTensor(shape, data)
+	case ort.TensorElementDataTypeFloat:
+		return ort.NewTensor(shape, convertToFloat32(data))
 	default:
 		return nil, fmt.Errorf("unsupported input tensor type %s for %s", info.DataType.String(), info.Name)
 	}
