@@ -365,7 +365,8 @@ async function createProjectModal() {
 }
 
 #header button.create {
-    background-color: #328435;
+    background-color: var(--accent-deep);
+    border: 1px solid var(--accent);
     color: white;
 }
 

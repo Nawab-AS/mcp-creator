@@ -1,6 +1,27 @@
+:root {
+    color-scheme: dark;
+    --app-bg: #1e1e1e;
+    --surface: #242424;
+    --surface-hover: #292929;
+    --surface-inset: #1b1b1b;
+    --border: #414141;
+    --border-strong: #4e4e4e;
+    --text-primary: #f3f6fb;
+    --text-secondary: #bdbdbd;
+    --text-muted: #888;
+    --accent: #176dcf;
+    --accent-deep: #004f94;
+    --danger: #6d1d1d;
+    --danger-hover: #9f2929;
+    --danger-border: #8f2424;
+    --success: #328435;
+    --radius-control: 4px;
+    --radius-surface: 6px;
+}
+
 html {
-    background-color: #1e1e1e;
-    color: white;
+    background-color: var(--app-bg);
+    color: var(--text-primary);
     width: 100%;
     height: 100%;
     overflow: hidden;
@@ -22,7 +43,7 @@ body {
     margin: 0;
     width: 100%;
     height: 100%;
-    color: white;
+    color: var(--text-primary);
     font-family: "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans",
         "Droid Sans", "Helvetica Neue", sans-serif;
 }

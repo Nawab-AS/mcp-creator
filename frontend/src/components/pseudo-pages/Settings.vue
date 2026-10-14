@@ -9,8 +9,8 @@ import { OpenStorageDir, Uninstall } from '../../../wailsjs/go/main/App'
         <h1 id="header">Settings</h1>
 
         <div id="buttons">
-            <button @click="Uninstall()">Uninstall</button>
-            <button @click="OpenStorageDir()">Open Storage Directory</button>
+            <button class="destructive" @click="Uninstall()">Uninstall</button>
+            <button class="secondary" @click="OpenStorageDir()">Open Storage Directory</button>
         </div>
     </div>
 </template>
@@ -36,12 +36,24 @@ h1 {
 }
 
 #buttons button {
-    padding: 10px 20px;
-    font-size: 1rem;
-    border: none;
-    border-radius: 5px;
-    background-color: #6d1717;
-    color: #ffffff;
+    width: fit-content;
+    padding: 7px 11px;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-control);
     cursor: pointer;
+}
+
+#buttons button.destructive {
+    background-color: var(--danger);
+    border-color: var(--danger-border);
+    color: #fff;
+}
+
+#buttons button.secondary {
+    background-color: #3c3c3c;
+    color: var(--text-primary);
 }
 </style>

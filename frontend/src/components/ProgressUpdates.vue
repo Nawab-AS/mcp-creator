@@ -127,14 +127,12 @@ onBeforeUnmount(() => {
 <style scoped>
 #progress-updates {
     width: 100%;
+    min-height: 0;
+    flex: 0 1 auto;
     box-sizing: border-box;
     padding: 10px;
     overflow-y: auto;
     max-height: 200px;
-}
-
-Article {
-    width: calc(200px - 40px);
 }
 
 .updates-list {
@@ -143,10 +141,12 @@ Article {
 }
 
 .progress-update {
-    border: 1px solid #454545;
-    border-radius: 5px;
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-surface);
     padding: 8px;
-    background-color: #202020;
+    background-color: var(--surface);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
@@ -180,13 +180,13 @@ Article {
 
 .update-status {
     display: block;
-    color: #9db9d8;
+    color: #8ebeff;
     font-size: 0.7rem;
     font-weight: 600;
 }
 
 .complete .update-status {
-    color: #86c996;
+    color: #83c992;
 }
 
 .error .update-status,
@@ -197,7 +197,7 @@ Article {
 .model-name {
     display: block;
     overflow: hidden;
-    color: #ececec;
+    color: var(--text-primary);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -205,28 +205,28 @@ Article {
 .progress-value {
     flex: 0 0 auto;
     padding-top: 2px;
-    color: #9db9d8;
+    color: #8ebeff;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
 }
 
 .progress-bar {
     width: 100%;
-    height: 4px;
+    height: 5px;
     background-color: #3c3c3c;
-    border-radius: 2px;
+    border-radius: 3px;
     overflow: hidden;
 }
 
 .progress {
     height: 100%;
     border-radius: inherit;
-    background-color: #2185ff;
+    background-color: var(--accent);
     transition: width 0.2s ease;
 }
 
 .complete .progress {
-    background-color: #4ca964;
+    background-color: var(--success);
 }
 
 .error .progress {

@@ -68,8 +68,8 @@ const page = ref("home")
     min-width: 200px;
     flex: 0 0 200px;
 
-    background-color: #242424;
-    border-right: 1px solid #444;
+    background-color: var(--surface);
+    border-right: 1px solid var(--border);
 }
 
 #greeting {
@@ -102,7 +102,7 @@ const page = ref("home")
 hr {
     border: 0;
     height: 2px;
-    background-color: #444;
+    background-color: var(--border);
     margin: 0;
 }
 
@@ -126,8 +126,8 @@ hr {
     margin: 10px 10px;
     transition: all 0.3s ease-in-out;
     text-align: center;
-    border-radius: 10px;
-    height: 40px;
+    border-radius: var(--radius-control);
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -135,11 +135,11 @@ hr {
 
 #menu>li:hover {
     cursor: pointer;
-    background-color: #333;
+    background-color: var(--surface-hover);
 }
 
 #menu>li.active {
-    background-color: #3e3e3e;
+    background-color: #353535;
 }
 
 #content {
@@ -154,6 +154,6 @@ hr {
     overflow: auto;
     overflow-x: hidden;
     box-sizing: border-box;
-    background-color: #1c1c1c;
+    background-color: var(--app-bg);
 }
 </style>

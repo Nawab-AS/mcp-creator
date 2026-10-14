@@ -53,7 +53,7 @@ async function close(cancelled?: boolean) {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.58);
     z-index: 1000;
 }
 
@@ -72,14 +72,14 @@ async function close(cancelled?: boolean) {
     right: 0;
     width: 300px;
     height: 100vh;
-    background-color: #242424;
-    color: white;
+    background-color: var(--surface);
+    color: var(--text-primary);
     padding: 20px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    border: 1px solid transparent;
-    border-radius: 20px 0 0 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-surface) 0 0 var(--radius-surface);
     z-index: 1001;
 }
 
@@ -89,12 +89,12 @@ async function close(cancelled?: boolean) {
 
 @keyframes warning-flash {
   0%, 100% {
-    background-color: #242424;
+    background-color: var(--surface);
     border-color: transparent;
   }
   45%, 65% {
-    background-color: #6b2424;
-    border-color: #e15a5a;
+    background-color: var(--danger);
+    border-color: #d14343;
   }
 }
 
@@ -103,26 +103,29 @@ async function close(cancelled?: boolean) {
   flex: 0 0 auto;
   margin-top: 16px;
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 #modal-actions button {
-	padding: 5px 10px;
-	font-size: 1rem;
-	border: none;
-	border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
 	cursor: pointer;
-	transition-duration: 0.5s;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 #side-modal button.save {
-	background-color: #328435;
+  background-color: var(--accent-deep);
+  border-color: var(--accent);
 	color: white;
 }
 
 #side-modal button.cancel {
-	background-color: #b71c1c;
-	color: white;
+  background-color: #3c3c3c;
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 

@@ -59,7 +59,8 @@ onUnmounted(() => {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.58);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -68,74 +69,75 @@ onUnmounted(() => {
 }
 
 .modal {
-    background-color: #2d2d2d;
-    border: 1px solid #444;
-    border-radius: 8px;
+    width: min(100%, 420px);
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-surface);
     padding: 0;
-    min-width: 380px;
-    max-width: 450px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
     animation: slideUp 0.2s ease-out;
 }
 
 .modal-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid #444;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header h3 {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #eee;
+    color: var(--text-primary);
 }
 
 .modal-body {
-    padding: 20px;
+    padding: 18px;
 }
 
 .modal-body p {
     margin: 0;
-    color: #ccc;
+    color: var(--text-secondary);
     line-height: 1.5;
 }
 
 .modal-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
-    padding: 16px 20px;
-    border-top: 1px solid #444;
+    gap: 8px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
 }
 
 .btn {
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: var(--radius-control);
+    font-size: 0.8rem;
+    font-weight: 600;
     cursor: pointer;
-    border: none;
-    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .btn-cancel {
-    background-color: #3a3a3a;
-    color: #eee;
-    border: 1px solid #555;
+    background-color: #3c3c3c;
+    color: var(--text-primary);
+    border-color: var(--border-strong);
 }
 
 .btn-cancel:hover {
-    background-color: #444;
+    background-color: #484848;
     border-color: #666;
 }
 
 .btn-danger {
-    background-color: #c0392b;
-    color: white;
+    background-color: var(--danger);
+    border-color: var(--danger-border);
+    color: #fff;
 }
 
 .btn-danger:hover {
-    background-color: #e74c3c;
+    background-color: var(--danger-hover);
+    border-color: #d14343;
 }
 
 @keyframes fadeIn {
