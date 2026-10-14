@@ -1,5 +1,5 @@
 name: "mcp-creator"
-arch: "amd64"
+arch: "${GOARCH}"
 platform: "linux"
 version: "1.0.0"
 section: "utils"
