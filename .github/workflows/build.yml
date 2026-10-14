@@ -21,10 +21,10 @@ jobs:
         include:
           - goarch: arm64
             runner: macos-15
-            artifact: mcp-creator-darwin-arm64.zip
+            cpu_arch: arm64
           - goarch: amd64
             runner: macos-15-intel
-            artifact: mcp-creator-darwin-amd64.zip
+            cpu_arch: x64
     runs-on: ${{ matrix.runner }}
     env:
       MACOSX_DEPLOYMENT_TARGET: "13.0"
@@ -52,15 +52,20 @@ jobs:
         run: wails build -platform darwin/${{ matrix.goarch }} -clean
 
       - name: Zip app bundle
+        id: package
         run: |
           cd "$RUNNER_TEMP/mcp-creator-build/bin"
           APP_DIR=$(ls -d *.app)
-          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "${{ matrix.artifact }}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ ! "$VERSION" =~ ^[0-9] ]]; then VERSION="0.0.0-dev"; fi
+          ARTIFACT="mcp-creator-${VERSION}-macos-${{ matrix.cpu_arch }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ARTIFACT"
+          echo "name=$ARTIFACT" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ runner.temp }}/mcp-creator-build/bin/${{ matrix.artifact }}
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ runner.temp }}/mcp-creator-build/bin/${{ steps.package.outputs.name }}
 
   build-windows:
     name: Build Windows (${{ matrix.goarch }})
@@ -70,7 +75,6 @@ jobs:
         include:
           - goarch: amd64
             runner: windows-2025
-            artifact: mcp-creator-windows-amd64.zip
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -113,15 +117,20 @@ jobs:
         run: wails build -platform windows/${{ matrix.goarch }} -clean
 
       - name: Zip binary
+        id: package
         shell: pwsh
         run: |
           $binDir = Join-Path $env:RUNNER_TEMP "mcp-creator-windows-build/bin"
-          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "${{ matrix.artifact }}")
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          if ($version -notmatch '^[0-9]') { $version = '0.0.0-dev' }
+          $artifact = "mcp-creator-$version-windows-x64.zip"
+          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir $artifact)
+          "name=$artifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/${{ matrix.artifact }}
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/${{ steps.package.outputs.name }}
 
   build-linux-amd64:
     name: Build Linux amd64
@@ -170,8 +179,10 @@ jobs:
         run: |
           mkdir -p build/bin
           cp "$RUNNER_TEMP/mcp-creator-linux-build/bin/mcp-creator" build/bin/mcp-creator
-          GOARCH=amd64 nfpm package --config build/linux/nfpm.yaml --packager deb --target build/bin/
-          GOARCH=amd64 nfpm package --config build/linux/nfpm.yaml --packager rpm --target build/bin/
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ ! "$VERSION" =~ ^[0-9] ]]; then VERSION="0.0.0-dev"; fi
+          GOARCH=amd64 VERSION="$VERSION" nfpm package --config build/linux/nfpm.yaml --packager deb --target build/bin/
+          GOARCH=amd64 VERSION="$VERSION" nfpm package --config build/linux/nfpm.yaml --packager rpm --target build/bin/
 
       - uses: actions/upload-artifact@v4
         with:
@@ -226,8 +237,10 @@ jobs:
         run: |
           mkdir -p build/bin
           cp "$RUNNER_TEMP/mcp-creator-linux-build/bin/mcp-creator" build/bin/mcp-creator
-          GOARCH=arm64 nfpm package --config build/linux/nfpm.yaml --packager deb --target build/bin/
-          GOARCH=arm64 nfpm package --config build/linux/nfpm.yaml --packager rpm --target build/bin/
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ ! "$VERSION" =~ ^[0-9] ]]; then VERSION="0.0.0-dev"; fi
+          GOARCH=arm64 VERSION="$VERSION" nfpm package --config build/linux/nfpm.yaml --packager deb --target build/bin/
+          GOARCH=arm64 VERSION="$VERSION" nfpm package --config build/linux/nfpm.yaml --packager rpm --target build/bin/
 
       - uses: actions/upload-artifact@v4
         with:

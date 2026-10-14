@@ -1,7 +1,7 @@
 name: "mcp-creator"
 arch: "${GOARCH}"
 platform: "linux"
-version: "1.0.0"
+version: "${VERSION}"
 section: "utils"
 priority: "optional"
 maintainer: "Nawab-AS <59747708+Nawab-AS@users.noreply.github.com>"
