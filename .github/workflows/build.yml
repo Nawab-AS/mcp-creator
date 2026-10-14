@@ -170,7 +170,7 @@ jobs:
         run: |
           mkdir -p build/bin
           cp "$RUNNER_TEMP/mcp-creator-linux-build/bin/mcp-creator" build/bin/mcp-creator
-          nfpm package -f build/linux/nfpm.yaml -p deb -p rpm -a amd64 -t build/bin/
+          nfpm package -f build/linux/nfpm.yaml -p deb -p rpm --arch amd64 --target build/bin/
 
       - uses: actions/upload-artifact@v4
         with:
@@ -225,7 +225,7 @@ jobs:
         run: |
           mkdir -p build/bin
           cp "$RUNNER_TEMP/mcp-creator-linux-build/bin/mcp-creator" build/bin/mcp-creator
-          nfpm package -f build/linux/nfpm.yaml -p deb -p rpm -a arm64 -t build/bin/
+          nfpm package -f build/linux/nfpm.yaml -p deb -p rpm --arch arm64 --target build/bin/
 
       - uses: actions/upload-artifact@v4
         with:
