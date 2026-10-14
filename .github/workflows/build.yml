@@ -21,7 +21,13 @@ jobs:
         include:
           - goarch: arm64
             runner: macos-15
+            artifact: mcp-creator-darwin-arm64.zip
+          - goarch: amd64
+            runner: macos-15-intel
+            artifact: mcp-creator-darwin-amd64.zip
     runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +39,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Use absolute Wails build directory
+      - name: Prepare Wails build directory
         run: |
           mkdir -p "$RUNNER_TEMP/mcp-creator-build"
           cp build/appicon.png "$RUNNER_TEMP/mcp-creator-build/appicon.png"
@@ -49,12 +55,12 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/mcp-creator-build/bin"
           APP_DIR=$(ls -d *.app)
-          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "mcp-creator-mac-silicon.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "${{ matrix.artifact }}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mcp-creator-mac-silicon
-          path: ${{ runner.temp }}/mcp-creator-build/bin/mcp-creator-mac-silicon.zip
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/mcp-creator-build/bin/${{ matrix.artifact }}
 
   build-windows:
     name: Build Windows (${{ matrix.goarch }})
@@ -64,6 +70,7 @@ jobs:
         include:
           - goarch: amd64
             runner: windows-2025
+            artifact: mcp-creator-windows-amd64.zip
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -109,16 +116,102 @@ jobs:
         shell: pwsh
         run: |
           $binDir = Join-Path $env:RUNNER_TEMP "mcp-creator-windows-build/bin"
-          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "mcp-creator-windows-11-x64.zip")
+          Compress-Archive -Path (Join-Path $binDir "mcp-creator.exe") -DestinationPath (Join-Path $binDir "${{ matrix.artifact }}")
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mcp-creator-windows-11-x64
-          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/mcp-creator-windows-11-x64.zip
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/mcp-creator-windows-build/bin/${{ matrix.artifact }}
+
+  build-linux-amd64:
+    name: Build Linux amd64
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgtk-3-dev libwebkit2gtk-4.1-dev libsqlite3-dev nfpm
+
+      - name: Prepare Wails build directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/mcp-creator-linux-build"
+          cp build/appicon.png "$RUNNER_TEMP/mcp-creator-linux-build/appicon.png"
+          node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-linux-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Build Linux binary
+        run: wails build -platform linux/amd64 -clean
+
+      - name: Package Linux binary
+        run: |
+          mkdir -p build/bin
+          cp "$RUNNER_TEMP/mcp-creator-linux-build/bin/mcp-creator" build/bin/mcp-creator
+          nfpm package -f build/linux/nfpm.yaml -p deb -p rpm -a amd64 -t build/bin/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: |
+            build/bin/*
+
+  build-linux-arm64:
+    name: Build Linux arm64
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgtk-3-dev libwebkit2gtk-4.1-dev libsqlite3-dev nfpm
+
+      - name: Prepare Wails build directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/mcp-creator-linux-build"
+          cp build/appicon.png "$RUNNER_TEMP/mcp-creator-linux-build/appicon.png"
+          node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-linux-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Build Linux binary
+        run: wails build -platform linux/arm64 -clean
+
+      - name: Package Linux binary
+        run: |
+          mkdir -p build/bin
+          cp "$RUNNER_TEMP/mcp-creator-linux-build/bin/mcp-creator" build/bin/mcp-creator
+          nfpm package -f build/linux/nfpm.yaml -p deb -p rpm -a arm64 -t build/bin/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: |
+            build/bin/*
 
   release:
     name: Publish release
-    needs: [build-macos, build-windows]
+    needs: [build-macos, build-windows, build-linux-amd64, build-linux-arm64]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -131,7 +224,7 @@ jobs:
       - name: Flatten artifacts
         run: |
           mkdir -p out
-          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec mv {} out/ \;
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.deb" -o -name "*.rpm" \) -exec mv {} out/ \;
           ls -la out
 
       - name: Create release

@@ -74,13 +74,44 @@ func OnnxStartup(commonFuncs CommonFuncs) error {
 }
 
 func getOnnxBinaryName() (string, error) {
+	return getOnnxBinaryNameForPlatform(runtime.GOOS, runtime.GOARCH)
+}
+
+func getOnnxBinaryNameForPlatform(goos string, goarch string) (string, error) {
 	switch {
-	case runtime.GOOS == "windows" && runtime.GOARCH == "amd64":
+	case goos == "windows" && goarch == "amd64":
 		return "onnxruntime-win-x64-" + onnxRuntimeVersion + ".dll", nil
-	case runtime.GOOS == "darwin" && runtime.GOARCH == "arm64":
+	case goos == "darwin" && goarch == "arm64":
 		return "onnxruntime-osx-arm64-" + onnxRuntimeVersion + ".dylib", nil
+	case goos == "darwin" && goarch == "amd64":
+		return "onnxruntime-osx-x86_64-" + onnxRuntimeVersion + ".dylib", nil
+	case goos == "linux" && goarch == "amd64":
+		return "onnxruntime-linux-x64-" + onnxRuntimeVersion + ".so", nil
+	case goos == "linux" && goarch == "arm64":
+		return "onnxruntime-linux-aarch64-" + onnxRuntimeVersion + ".so", nil
 	default:
-		return "", fmt.Errorf("unsupported platform %s/%s; supported platforms are windows/amd64 and darwin/arm64", runtime.GOOS, runtime.GOARCH)
+		return "", fmt.Errorf("unsupported platform %s/%s; supported platforms are windows/amd64, darwin/amd64, darwin/arm64, linux/amd64, and linux/arm64", goos, goarch)
+	}
+}
+
+func getOnnxArchiveName() (string, error) {
+	return getOnnxArchiveNameForPlatform(runtime.GOOS, runtime.GOARCH)
+}
+
+func getOnnxArchiveNameForPlatform(goos string, goarch string) (string, error) {
+	switch {
+	case goos == "windows" && goarch == "amd64":
+		return "onnxruntime-win-x64-" + onnxRuntimeVersion + ".zip", nil
+	case goos == "darwin" && goarch == "arm64":
+		return "onnxruntime-osx-arm64-" + onnxRuntimeVersion + ".tgz", nil
+	case goos == "darwin" && goarch == "amd64":
+		return "onnxruntime-osx-x86_64-" + onnxRuntimeVersion + ".tgz", nil
+	case goos == "linux" && goarch == "amd64":
+		return "onnxruntime-linux-x64-" + onnxRuntimeVersion + ".tgz", nil
+	case goos == "linux" && goarch == "arm64":
+		return "onnxruntime-linux-aarch64-" + onnxRuntimeVersion + ".tgz", nil
+	default:
+		return "", fmt.Errorf("unsupported platform %s/%s; supported platforms are windows/amd64, darwin/amd64, darwin/arm64, linux/amd64, and linux/arm64", goos, goarch)
 	}
 }
 
@@ -91,10 +122,11 @@ func downloadOnnxRuntime(targetPath string) error {
 		return err
 	}
 
-	archiveName := "onnxruntime-win-x64-" + onnxRuntimeVersion + ".zip"
-	if runtime.GOOS == "darwin" {
-		archiveName = "onnxruntime-osx-arm64-" + onnxRuntimeVersion + ".tgz"
+	archiveName, err := getOnnxArchiveName()
+	if err != nil {
+		return err
 	}
+
 	downloadURL := fmt.Sprintf("https://github.com/microsoft/onnxruntime/releases/download/v%s/%s", onnxRuntimeVersion, archiveName)
 	archivePath := targetPath + ".archive"
 	defer os.Remove(archivePath)
@@ -121,7 +153,7 @@ func extractRuntime(archivePath string, targetPath string, binaryName string) er
 	if runtime.GOOS == "windows" {
 		return extractWindowsRuntime(archivePath, targetPath)
 	}
-	return extractDarwinRuntime(archivePath, targetPath, binaryName)
+	return extractUnixRuntime(archivePath, targetPath, binaryName)
 }
 
 func extractWindowsRuntime(archivePath string, targetPath string) error {
@@ -168,7 +200,7 @@ func extractZipFile(file *zip.File, targetPath string) error {
 	return output.Close()
 }
 
-func extractDarwinRuntime(archivePath string, targetPath string, binaryName string) error {
+func extractUnixRuntime(archivePath string, targetPath string, binaryName string) error {
 	archiveFile, err := os.Open(archivePath)
 	if err != nil {
 		return err
@@ -189,9 +221,23 @@ func extractDarwinRuntime(archivePath string, targetPath string, binaryName stri
 		if err != nil {
 			return fmt.Errorf("read ONNX Runtime archive: %w", err)
 		}
-		if !strings.HasSuffix(header.Name, "/lib/libonnxruntime.1."+onnxRuntimeVersion+".dylib") {
+		if header == nil || header.Typeflag == tar.TypeDir {
 			continue
 		}
+		if header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
+			continue
+		}
+
+		name := filepath.ToSlash(header.Name)
+		base := filepath.Base(name)
+		if !strings.HasPrefix(base, "libonnxruntime") || strings.Contains(base, "providers_shared") {
+			continue
+		}
+		if !strings.HasSuffix(base, ".dylib") && !strings.HasSuffix(base, ".so") &&
+			!strings.Contains(base, ".dylib.") && !strings.Contains(base, ".so.") {
+			continue
+		}
+
 		output, err := os.Create(targetPath)
 		if err != nil {
 			return err
