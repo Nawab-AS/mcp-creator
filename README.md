@@ -1,4 +1,7 @@
 # MCP Creator
+![GitHub Releases Downloads Baadge](https://img.shields.io/github/downloads/Nawab-AS/mcp-creator/total?label=Total%20Downloads)
+
+
 A simple app to create and host custom semantic search MCP servers.
 
 ## Intro
