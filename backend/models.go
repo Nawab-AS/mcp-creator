@@ -6,33 +6,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-type Models struct{ ctx context.Context }
+type Models struct{}
 
 func (a *Models) Startup(ctx context.Context) {
-	a.ctx = ctx
-
 	// load (/save default) models save file
-	configDir, err := GetConfigPath()
-	if err != nil {
-		fmt.Println("Error getting config path:", err)
-		return
-	}
-
-	modelsFilePath := filepath.Join(configDir, "models.json")
+	modelsFilePath := Utils.Files.GetFileStoragePath("models.json")
 	if _, err := os.Stat(modelsFilePath); os.IsNotExist(err) {
 		// File does not exist, create it with default models
-		if err := writeSaveFile_models(); err != nil {
-			fmt.Println("Error writing default models to models.json:", err)
-			return
-		}
-	} else if err == nil {
-		// File exists, load it
+		Utils.Files.WriteStructToFile(models, "models.json")
+
+	} else if err == nil { // File exists, load it
 		file, err := os.Open(modelsFilePath)
 		if err != nil {
 			fmt.Println("Error opening models.json:", err)
@@ -51,39 +36,9 @@ func (a *Models) Startup(ctx context.Context) {
 	refreshInstalledModelState()
 }
 
-var FS_MUTEX_models sync.Mutex
-
-func writeSaveFile_models() error {
-	FS_MUTEX_models.Lock()
-	defer FS_MUTEX_models.Unlock()
-	// Write `models` to `models.json` in the config directory
-	configDir, err := GetConfigPath()
-	if err != nil {
-		fmt.Println("Error getting config path:", err)
-		return err
-	}
-
-	file, err := os.Create(filepath.Join(configDir, "models.json"))
-	if err != nil {
-		fmt.Println("Error creating models.json:", err)
-		return err
-	}
-	defer file.Close()
-
-	err = json.NewEncoder(file).Encode(models)
-	if err != nil {
-		fmt.Println("Error writing to models.json:", err)
-		return err
-	}
-	return nil
-}
-
 func refreshInstalledModelState() {
 	for i := range models {
-		modelDirectory, err := ModelStorageDirectory(models[i].Name)
-		if err != nil {
-			continue
-		}
+		modelDirectory := Utils.Files.ModelStorageDirectory(models[i].Name)
 
 		modelFilePath := filepath.Join(modelDirectory, "model.onnx")
 		if _, err := os.Stat(modelFilePath); err == nil {
@@ -142,10 +97,7 @@ var models = []Model{
 func (a *Models) DownloadModel(modelName string) {
 	fmt.Println("Downloading model:", modelName)
 
-	if modelName == "" {
-		return
-	}
-
+	// find the model by name
 	var model *Model
 	for i := range models {
 		if models[i].Name == modelName {
@@ -157,74 +109,30 @@ func (a *Models) DownloadModel(modelName string) {
 	if model == nil {
 		fmt.Println("Model not found:", modelName)
 		return
-	}
-
-	if model.Installed && model.Path != "" {
+	} else if model.Installed && model.Path != "" {
 		fmt.Println("Model already installed:", modelName)
 		return
 	}
 
-	go func() {
-		runtime.EventsEmit(a.ctx, "started", "model-download", modelName)
+	// start download
+	Events.Emit("started", "model-download", modelName)
+	modelDirectory := Utils.Files.ModelStorageDirectory(modelName)
 
-		modelDirectory, err := ModelStorageDirectory(modelName)
-		if err != nil {
-			fmt.Printf("Unable to prepare model directory for %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
-			return
-		}
+	err := Utils.Files.ParallelDownloadFiles([]struct {
+		SourceURL  string
+		TargetPath string
+	}{
+		{model.OnnxURL, filepath.Join(modelDirectory, "model.onnx")},
+		{model.TokenizerURL, filepath.Join(modelDirectory, "tokenizer.json")},
+	}, func(percentage float32) {
+		Events.Emit("progress", "model-download", modelName, percentage)
+	})
 
-		stagingDirectory := modelDirectory + ".partial"
-		if err := os.RemoveAll(stagingDirectory); err != nil {
-			fmt.Printf("Unable to clear partial download for %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
-			return
-		}
-		if err := os.MkdirAll(stagingDirectory, 0o755); err != nil {
-			fmt.Printf("Unable to create model directory for %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
-			return
-		}
-
-		download := func(sourceURL string, filename string, baseProgress float32, weight float32) error {
-			return DownloadFile(sourceURL, filepath.Join(stagingDirectory, filename), func(progress float32) {
-				runtime.EventsEmit(a.ctx, "progress", "model-download", modelName, baseProgress+(progress*weight))
-			})
-		}
-
-		if err := download(model.OnnxURL, "model.onnx", 0, 0.95); err != nil {
-			fmt.Printf("Unable to download model %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Network error")
-			_ = os.RemoveAll(stagingDirectory)
-			return
-		}
-		if err := download(model.TokenizerURL, "tokenizer.json", 0.95, 0.05); err != nil {
-			fmt.Printf("Unable to download tokenizer for %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Network error")
-			_ = os.RemoveAll(stagingDirectory)
-			return
-		}
-
-		if err := os.RemoveAll(modelDirectory); err != nil {
-			fmt.Printf("Unable to replace model %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
-			_ = os.RemoveAll(stagingDirectory)
-			return
-		}
-		if err := os.Rename(stagingDirectory, modelDirectory); err != nil {
-			fmt.Printf("Unable to finalize model %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-download", modelName, "Permission denied")
-			_ = os.RemoveAll(stagingDirectory)
-			return
-		}
-
-		model.Installed = true
-		model.Path = filepath.Join(modelDirectory, "model.onnx")
-		if err := writeSaveFile_models(); err != nil {
-			fmt.Printf("Unable to save model state for %q: %v\n", modelName, err)
-		}
-		runtime.EventsEmit(a.ctx, "completed", "model-download", modelName)
-	}()
+	if err != nil {
+		fmt.Printf("Unable to parallel download: %v", err)
+		Events.Emit("error", "model-download", modelName, "Network error")
+		return
+	}
 }
 
 func (a *Models) DeleteModel(modelName string) {
@@ -251,49 +159,24 @@ func (a *Models) DeleteModel(modelName string) {
 		return
 	}
 
-	go func() {
-		runtime.EventsEmit(a.ctx, "started", "model-delete", modelName)
+	Events.Emit("started", "model-delete", modelName)
 
-		modelDirectory, err := ModelStorageDirectory(modelName)
-		if err != nil {
-			fmt.Printf("Unable to locate model directory for %q: %v\n", modelName, err)
-			runtime.EventsEmit(a.ctx, "error", "model-delete", modelName, "File not found")
-			return
-		}
+	modelDirectory := Utils.Files.ModelStorageDirectory(modelName)
 
-		deleteDone := make(chan error, 1)
-		go func() {
-			deleteDone <- os.RemoveAll(modelDirectory)
-		}()
+	if !Utils.Files.IsDirWritable(modelDirectory) {
+		fmt.Printf("Unable to access model directory for %q", modelName)
+		Events.Emit("error", "model-delete", modelName, "File not found")
+		return
+	}
 
-		ticker := time.NewTicker(progressUpdateInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				runtime.EventsEmit(a.ctx, "progress", "model-delete", modelName, 0)
-			case err := <-deleteDone:
-				if err != nil {
-					fmt.Printf("Unable to delete model %q: %v\n", modelName, err)
-					runtime.EventsEmit(a.ctx, "error", "model-delete", modelName, "Permission denied")
-					return
-				}
+	if err := os.RemoveAll(modelDirectory); err != nil {
+		fmt.Printf("Unable to delete model directory for %q: %v", modelName, err)
+		Events.Emit("error", "model-delete", modelName, "Permission denied")
+		return
+	}
 
-				model.Installed = false
-				model.Path = ""
-				writeSaveFile_models()
-				runtime.EventsEmit(a.ctx, "completed", "model-delete", modelName)
-				return
-			}
-		}
-	}()
-}
-
-// expose to entire package `backend`
-func (a *Models) GetModels() []Model { return GetModels() }
-
-func GetModels() []Model {
-	FS_MUTEX_models.Lock()
-	defer FS_MUTEX_models.Unlock()
-	return models
+	model.Installed = false
+	model.Path = ""
+	Utils.Files.WriteStructToFile(models, "models.json")
+	Events.Emit("completed", "model-delete", modelName)
 }

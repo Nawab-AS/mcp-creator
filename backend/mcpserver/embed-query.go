@@ -91,11 +91,7 @@ func (t *Tokenizer) EncodeBatch(queries []string) ([][]int32, error) {
 }
 
 func loadModel(modelName string) (modelData, error) {
-	modelDir, err := common.ModelStorageDirectory(modelName)
-	if err != nil {
-		fmt.Println("Error loading model directory:", err)
-		return modelData{}, err
-	}
+	modelDir := Utils.Files.ModelStorageDirectory(modelName)
 
 	modelPath := filepath.Join(modelDir, "model.onnx")
 	inputs, outputs, err := ort.GetInputOutputInfo(modelPath)
@@ -524,14 +520,6 @@ func convertToFloat32[T float64 | int32 | int64](data []T) []float32 {
 	converted := make([]float32, len(data))
 	for i, value := range data {
 		converted[i] = float32(value)
-	}
-	return converted
-}
-
-func convertToInt32(data []int64) []int32 {
-	converted := make([]int32, len(data))
-	for i, value := range data {
-		converted[i] = int32(value)
 	}
 	return converted
 }

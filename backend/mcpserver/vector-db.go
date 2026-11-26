@@ -61,7 +61,7 @@ var registerSQLiteVec sync.Once
 
 // creates a fresh empty vector database
 func NewVectorDB(dbPath string, vectorDimensions int) (*VectorDB, error) {
-	if exists, err := common.FsExists(dbPath, false); err != nil {
+	if exists, err := Utils.Files.Exists(dbPath); err != nil {
 		return nil, fmt.Errorf("error checking if database exists: %w", err)
 	} else if exists {
 		return (&VectorDB{}).LoadVectorDB(dbPath)

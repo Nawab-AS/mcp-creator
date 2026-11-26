@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"mcp-creator/utils"
 	"net"
 	"net/http"
 	"os"
@@ -19,6 +20,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+var Utils *utils.Utils
 
 type Server struct {
 	VectorDB
@@ -62,8 +65,8 @@ type getChunkResult struct {
 }
 
 func NewServer(projectName string, modelName string) (*Server, error) {
-	projectDir, projectDB, err := common.ProjectDBPath(projectName)
-	if err != nil {
+	projectDBpath := Utils.Files.ProjectDBPath(projectName)
+	if _, err := Utils.Files.Exists(projectDBpath); err != nil {
 		return nil, err
 	}
 
@@ -78,7 +81,7 @@ func NewServer(projectName string, modelName string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error getting vector dimension: %w", err)
 	}
-	vdb, err := NewVectorDB(filepath.Join(projectDir, projectDB), vectorDimensions.output)
+	vdb, err := NewVectorDB(projectDBpath, vectorDimensions.output)
 	if err != nil {
 		return nil, fmt.Errorf("error creating vector database: %w", err)
 	}
@@ -105,19 +108,19 @@ func (s *Server) Delete() error {
 	if err := s.Close(); err != nil {
 		return err
 	}
-	projectDir, projectDB, err := common.ProjectDBPath(s.name)
-	if err != nil {
+	projectDBpath := Utils.Files.ProjectDBPath(s.name)
+	if _, err := Utils.Files.Exists(projectDBpath); err != nil {
 		return err
 	}
-	if err := os.Remove(filepath.Join(projectDir, projectDB)); err != nil {
+	if err := os.Remove(projectDBpath); err != nil {
 		return fmt.Errorf("error deleting vector database: %w", err)
 	}
 	return nil
 }
 
 func ScrappableFile(filePath string) (bool, error) {
-	if exists, err := common.FsExists(filePath, false); err != nil {
-		return false, fmt.Errorf("error checking if file exists: %w", err)
+	if exists, err := Utils.Files.Exists(filePath); err != nil {
+		return false, err
 	} else if !exists {
 		return false, fmt.Errorf("file does not exist: %s", filePath)
 	}
@@ -159,7 +162,7 @@ func (s *Server) fileModified(tx *sql.Tx, filePath string) (bool, int64, error) 
 	modTime := fileInfo.ModTime().UnixNano()
 
 	// get last modified time from database
-	metadataKey := fmt.Sprintf("last_mod_%s", common.Hash(filePath))
+	metadataKey := fmt.Sprintf("last_mod_%s", Utils.Hash(filePath))
 	var lastMod int64
 	err = tx.QueryRow(`SELECT value FROM metadata WHERE key = ?;`, metadataKey).Scan(&lastMod)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -303,7 +306,7 @@ func (s *Server) addFile(ctx context.Context, tx *sql.Tx, filePath string, onPro
 		}
 	}
 	// fmt.Printf("Inserted %d vectors into the database\n", len(embeddings))
-	metadataKey := fmt.Sprintf("last_mod_%s", common.Hash(filePath))
+	metadataKey := fmt.Sprintf("last_mod_%s", Utils.Hash(filePath))
 	if _, err := tx.Exec(`INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?);`, metadataKey, modTime); err != nil {
 		return fmt.Errorf("error saving file metadata: %w", err)
 	}
@@ -433,7 +436,7 @@ func (s *Server) StopIndexing() error {
 	return nil
 }
 
-func (s *Server) IndexDir(dirPath string, force bool) error {
+func (s *Server) IndexDir(dirPath string, force bool) error { // TODO: fix event emits
 	ctx, err := s.beginIndexing()
 	if err != nil {
 		return err
@@ -489,44 +492,44 @@ func (s *Server) IndexDir(dirPath string, force bool) error {
 	}
 	sort.Strings(paths)
 
-	overallProgress := float32(0)
-	common.EmitEvent("progress", "project-index", s.name, overallProgress)
+	// overallProgress := float32(0)
+	// common.EmitEvent("progress", "project-index", s.name, overallProgress)
 
 	var processed int64 = 0
 	for _, filePath := range paths {
 		if err := ctx.Err(); err != nil {
-			common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
+			// common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
 			return fmt.Errorf("indexing cancelled: %w", err)
 		}
 		size := files[filePath]
-		initialProgress := float32(processed) / float32(totalSize)
+		//initialProgress := float32(processed) / float32(totalSize)
 
 		if err := s.addFile(ctx, tx, filePath, func(progress float32) {
-			overallProgress = initialProgress + (progress * float32(size) / float32(totalSize))
-			common.EmitEvent("progress", "project-index", s.name, overallProgress)
+			//overallProgress = initialProgress + (progress * float32(size) / float32(totalSize))
+			// common.EmitEvent("progress", "project-index", s.name, overallProgress)
 		}); err != nil {
 			if errors.Is(err, context.Canceled) {
-				common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
+				// common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
 				return fmt.Errorf("indexing cancelled: %w", err)
 			}
-			common.EmitEvent("error", "project-index", s.name)
+			// common.EmitEvent("error", "project-index", s.name)
 			return fmt.Errorf("error indexing file %s: %w", filePath, err)
 		}
 
 		// mark file as processed
 		processed += size
-		overallProgress = float32(processed) / float32(totalSize)
-		common.EmitEvent("progress", "project-index", s.name, overallProgress)
+		//overallProgress = float32(processed) / float32(totalSize)
+		// common.EmitEvent("progress", "project-index", s.name, overallProgress)
 	}
 	if err := ctx.Err(); err != nil {
-		common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
+		// common.EmitEvent("error", "project-index", s.name, "Indexing cancelled")
 		return fmt.Errorf("indexing cancelled: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("error committing index transaction: %w", err)
 	}
 
-	common.EmitEvent("completed", "project-index", s.name)
+	// common.EmitEvent("completed", "project-index", s.name)
 	fmt.Printf("Indexed dir `%s`\n", dirPath)
 	return nil
 }

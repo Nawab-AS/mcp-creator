@@ -8,9 +8,9 @@ on:
 
 env:
   CGO_ENABLED: "1"
-  GO_VERSION: "1.25"
+  GO_VERSION: "1.27"
   NODE_VERSION: "22.22.3"
-  WAILS_VERSION: "v2.17.0"
+  WAILS_VERSION: "v3.0.0"
 
 jobs:
   build-macos:
@@ -46,10 +46,10 @@ jobs:
           node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
 
       - name: Build app bundle
-        run: wails build -platform darwin/${{ matrix.goarch }} -clean
+        run: wails3 build -platform darwin/${{ matrix.goarch }} -clean
 
       - name: Zip app bundle
         id: package
@@ -111,10 +111,10 @@ jobs:
           node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-windows-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
 
       - name: Build
-        run: wails build -platform windows/${{ matrix.goarch }} -clean
+        run: wails3 build -platform windows/${{ matrix.goarch }} -clean
 
       - name: Zip binary
         id: package
@@ -170,10 +170,10 @@ jobs:
           node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-linux-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
 
       - name: Build Linux binary
-        run: wails build -platform linux/amd64 -clean
+        run: wails3 build -platform linux/amd64 -clean
 
       - name: Package Linux binary
         run: |
@@ -228,10 +228,10 @@ jobs:
           node -e 'const fs = require("fs"); const config = JSON.parse(fs.readFileSync("wails.json", "utf8")); config.projectdir = process.cwd(); config["build:dir"] = process.env.RUNNER_TEMP + "/mcp-creator-linux-build"; fs.writeFileSync("wails.json", JSON.stringify(config, null, 2) + "\n");'
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
 
       - name: Build Linux binary
-        run: wails build -platform linux/arm64 -clean
+        run: wails3 build -platform linux/arm64 -clean
 
       - name: Package Linux binary
         run: |

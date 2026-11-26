@@ -4,16 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"mcp-creator/backend/mcpserver"
-	"net"
+	"mcp-creator/utils"
 	"os"
-	"path/filepath"
 	"regexp"
-	"sync"
 	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Projects struct
@@ -26,16 +21,10 @@ func (a *Projects) Startup(ctx context.Context) {
 	global_ctx = ctx
 
 	// load (/save default) models save file
-	configDir, err := GetConfigPath()
-	if err != nil {
-		fmt.Println("Error getting config path:", err)
-		return
-	}
-
-	modelsFilePath := filepath.Join(configDir, "projects.json")
-	if _, err := os.Stat(modelsFilePath); os.IsNotExist(err) {
-		// File does not exist, create it with default projects (empty)
-		if err := writeSaveFile_projects(); err != nil {
+	modelsFilePath := Utils.Files.GetFileStoragePath("projects.json")
+	if exists, err := Utils.Files.Exists(modelsFilePath); err != nil && !exists {
+		// File does not exist, create it (empty)
+		if err := Utils.Files.WriteStructToFile(projects, "projects.json"); err != nil {
 			fmt.Println("Error writing default projects to projects.json:", err)
 			return
 		}
@@ -71,17 +60,18 @@ func editStatus(projectName string, status Status) error {
 	}
 
 	project.Status = status
-	runtime.EventsEmit(global_ctx, "project-status", projectName, status)
+	Events.Emit("project-status", projectName, status)
+
 	return nil
 }
 
 var servers = map[string]*mcpserver.Server{} // name --> server
-func (a *Common) InitProjects() {
-	for _, project := range getProjects() {
+func (a *Backend) InitProjects() {
+	for _, project := range projects {
 		// create a server for each project
 		go func(proj Project) {
 			_ = editStatus(proj.Name, StatusStarting)
-			server, err := mcpserver.NewServer(proj.Name, proj.ModelUsed)
+			server, err := mcpserver.NewServer(proj.Name, proj.Model)
 			if err != nil {
 				fmt.Printf("Error initializing server for project %s: %v\n", proj.Name, err)
 				_ = editStatus(proj.Name, StatusOffline)
@@ -155,33 +145,6 @@ func (a *Projects) StopIndexing(projectName string) error {
 	return server.StopIndexing()
 }
 
-var FS_MUTEX_projects sync.Mutex
-
-func writeSaveFile_projects() error {
-	FS_MUTEX_projects.Lock()
-	defer FS_MUTEX_projects.Unlock()
-	// Write `projects` to `projects.json` in the config directory
-	configDir, err := GetConfigPath()
-	if err != nil {
-		fmt.Println("Error getting config path:", err)
-		return err
-	}
-
-	file, err := os.Create(filepath.Join(configDir, "projects.json"))
-	if err != nil {
-		fmt.Println("Error creating projects.json:", err)
-		return err
-	}
-	defer file.Close()
-
-	err = json.NewEncoder(file).Encode(projects)
-	if err != nil {
-		fmt.Println("Error writing to projects.json:", err)
-		return err
-	}
-	return nil
-}
-
 // Status enums
 type Status int
 
@@ -198,20 +161,15 @@ type Project struct {
 	Path         string `json:"path"`
 	Star         bool   `json:"star"`
 	LastModified string `json:"lastModified"`
-	Status       Status `json:"status,omitempty"`
-	ModelUsed    string `json:"modelUsed"`
+	Status       Status `json:"-"`
+	Model        string `json:"model"`
 	Port         int    `json:"port"`
 }
 
 var projects = []Project{}
 var projectNamePattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 
-// expose to entire package `backend`
-func getProjects() []Project { return projects }
-
-func (a *Projects) GetProjects() []Project { return projects }
-
-func (a *Projects) ModifyProject(projectName string, attribute string, value any) Response {
+func (a *Projects) ModifyProject(projectName string, attribute string, value any) utils.Response {
 	// get pointer to Project with name projectName
 	var project *Project
 	for i := range projects {
@@ -222,9 +180,9 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 	}
 
 	if project == nil {
-		return Response{404, fmt.Sprintf("Project `%s` not found", projectName)}
+		return Utils.NewResponse(true, fmt.Sprintf("Project `%s` not found", projectName))
 	}
-	var oldProjects []Project = getProjects()
+	var oldProjects []Project = projects
 	candidate := *project
 
 	// set attribute of project to value
@@ -233,14 +191,14 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 	case "name":
 		if s, ok := value.(string); ok {
 			if s == "" {
-				return Response{400, "name: Name cannot be empty"}
+				return Utils.NewResponse(true, "name: Name cannot be empty")
 			}
 			if !projectNamePattern.MatchString(s) {
-				return Response{400, "name: Name can only contain letters, numbers, and dashes"}
+				return Utils.NewResponse(true, "name: Name can only contain letters, numbers, and dashes")
 			}
 			for _, p := range oldProjects {
 				if p.Name == s && p.Name != projectName {
-					return Response{409, fmt.Sprintf("name: Project `%s` already exists", s)}
+					return Utils.NewResponse(true, fmt.Sprintf("name: Project `%s` already exists", s))
 				}
 			}
 			candidate.Name = s
@@ -249,11 +207,11 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 	case "path":
 		if s, ok := value.(string); ok {
 			if s == "" {
-				return Response{400, "path: Path cannot be empty"}
+				return Utils.NewResponse(true, "path: Path cannot be empty")
 			}
 			for _, p := range oldProjects {
 				if p.Path == s && p.Name != projectName {
-					return Response{409, "path: Project with this path already exists"}
+					return Utils.NewResponse(true, "path: Project with this path already exists")
 				}
 			}
 			candidate.Path = s
@@ -271,13 +229,13 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 		}
 	case "modelUsed":
 		if s, ok := value.(string); ok {
-			candidate.ModelUsed = s
+			candidate.Model = s
 			valid = true
 		}
 	case "port":
 		if port, ok := value.(int); ok {
-			if _, err := a.PortAvailable(port); err != nil {
-				return Response{409, fmt.Sprintf("port: %s", err.Error())}
+			if _, err := Utils.Network.IsPortAvailable(port); err != nil {
+				return Utils.NewResponse(true, fmt.Sprintf("port: %s", err.Error()))
 			}
 			candidate.Port = port
 			valid = true
@@ -285,57 +243,57 @@ func (a *Projects) ModifyProject(projectName string, attribute string, value any
 	}
 
 	if !valid {
-		return Response{400, fmt.Sprintf("Invalid value `%s` for attribute `%s` for project `%s`", value, attribute, projectName)}
+		return Utils.NewResponse(true, fmt.Sprintf("Invalid value for attribute `%s`", attribute))
 	}
 
 	if attribute != "star" {
 		candidate.LastModified = time.Now().Format(time.RFC3339)
 	}
 
-	exists, err := FsExists(candidate.Path, true)
+	exists, err := Utils.Files.Exists(candidate.Path)
 	if err != nil || !exists {
-		return Response{400, fmt.Sprintf("path: Folder `%s` does not exist", candidate.Path)}
+		return Utils.NewResponse(true, fmt.Sprintf("path: Folder `%s` is not accessible", candidate.Path))
 	}
 	*project = candidate
 
-	if err := writeSaveFile_projects(); err != nil {
-		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
+	if err := Utils.Files.WriteStructToFile(projects, "projects.json"); err != nil {
+		return Utils.NewResponse(true, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error()))
 	}
 
-	return Response{200, fmt.Sprintf("Modified project `%s`: set `%s` --> `%v`\n", projectName, attribute, value)}
+	return Utils.NewResponse(false, fmt.Sprintf("Modified project `%s`: set `%s` --> `%v`\n", projectName, attribute, value))
 }
 
-func (a *Projects) CreateProject(name string, path string, model string, port int) Response {
+func (a *Projects) CreateProject(name string, path string, model string, port int) utils.Response {
 	if name == "" {
-		return Response{400, "name: Name is required"}
+		return Utils.NewResponse(true, "name: Name is required")
 	}
 	if !projectNamePattern.MatchString(name) {
-		return Response{400, "name: Name can only contain letters, numbers, and dashes"}
+		return Utils.NewResponse(true, "name: Name can only contain letters, numbers, and dashes")
 	}
 	if path == "" {
-		return Response{400, "path: Path is required"}
+		return Utils.NewResponse(true, "path: Path is required")
 	}
 	if model == "" {
-		return Response{400, "model: Model is required"}
+		return Utils.NewResponse(true, "model: Model is required")
 	}
 	if port == -1 {
-		port = a.GetAvailablePort()
+		port = Utils.Network.GetAvailablePort()
 	}
 
 	// check if project with same name already exists
 	for _, p := range projects {
 		if p.Name == name {
-			return Response{409, fmt.Sprintf("name: Project `%s` already exists", name)}
+			return Utils.NewResponse(true, fmt.Sprintf("name: Project `%s` already exists", name))
 		}
 		if p.Path == path {
-			return Response{409, fmt.Sprintf("path: Project `%s` already exists with this path", p.Name)}
+			return Utils.NewResponse(true, fmt.Sprintf("path: Project `%s` already exists with this path", p.Name))
 		}
 	}
-	if _, err := a.PortAvailable(port); err != nil {
-		return Response{409, fmt.Sprintf("port: %s", err.Error())}
+	if _, err := Utils.Network.IsPortAvailable(port); err != nil {
+		return Utils.NewResponse(true, fmt.Sprintf("port: %s", err.Error()))
 	}
 
-	var models = GetModels()
+	// TODO: make into a function
 	var modelExists bool = false
 	for _, m := range models {
 		if m.Name == model {
@@ -344,11 +302,11 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 		}
 	}
 	if !modelExists {
-		return Response{400, "model: Model does not exist"}
+		return Utils.NewResponse(true, "model: Model does not exist")
 	}
-	exists, err := FsExists(path, true)
+	exists, err := Utils.Files.Exists(path)
 	if err != nil || !exists {
-		return Response{400, "path: Folder does not exist"}
+		return Utils.NewResponse(true, "path: Folder does not exist")
 	}
 
 	project := Project{
@@ -357,25 +315,25 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 		Star:         false,
 		LastModified: time.Now().Format(time.RFC3339),
 		Status:       StatusStarting,
-		ModelUsed:    model,
+		Model:        model,
 		Port:         port,
 	}
 
 	server, err := mcpserver.NewServer(name, model)
 	if err != nil {
 		fmt.Printf("Error initializing server for project %s: %v\n", name, err)
-		return Response{500, fmt.Sprintf("Error initializing server for project %s: %v", name, err)}
+		return Utils.NewResponse(true, fmt.Sprintf("Error initializing server for project %s: %v", name, err))
 	}
 	if err := server.StartServer(port); err != nil {
 		fmt.Printf("Error starting server for project %s: %v\n", name, err)
-		return Response{500, fmt.Sprintf("Error starting server for project %s: %v", name, err)}
+		return Utils.NewResponse(true, fmt.Sprintf("Error starting server for project %s: %v", name, err))
 	}
 
 	projects = append(projects, project)
-	if err := writeSaveFile_projects(); err != nil {
+	if err := Utils.Files.WriteStructToFile(projects, "projects.json"); err != nil {
 		_ = server.Delete()
 		projects = projects[:len(projects)-1]
-		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
+		return Utils.NewResponse(true, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error()))
 	}
 	servers[name] = server
 	go func() {
@@ -385,44 +343,10 @@ func (a *Projects) CreateProject(name string, path string, model string, port in
 	}()
 	fmt.Printf("Created Project `%s` at path `%s` with model `%s` and port `%d`\n", name, path, model, port)
 
-	return Response{201, "Project created successfully"}
+	return Utils.NewResponse(false, "Project created successfully")
 }
 
-func (a *Projects) PortAvailable(port int) (bool, error) {
-	if port < 1024 || port > 49150 {
-		return false, fmt.Errorf("port must be between 1024 and 49,150 (inclusive)")
-	}
-	// port used by other projects
-	for _, p := range projects {
-		if p.Port == port {
-			return false, fmt.Errorf("port `%d` is already in use by project `%s`", port, p.Name)
-		}
-	}
-
-	// port used by other processes
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return false, fmt.Errorf("port `%d` is already in use by another process", port)
-	}
-	_ = ln.Close()
-	return true, nil
-}
-
-func (a *Projects) GetAvailablePort() int {
-	for i := 0; i < 100; i++ {
-		port := rand.IntN(49150-1024) + 1024
-		if _, err := a.PortAvailable(port); err == nil {
-			return port
-		}
-	}
-	return 0 // If you actually get this, Good luck! You'll need it
-}
-
-func DeleteProject(projectName string) Response {
-	return (&Projects{}).DeleteProject(projectName)
-}
-
-func (a *Projects) DeleteProject(projectName string) Response {
+func (a *Projects) DeleteProject(projectName string) utils.Response {
 	var project *Project
 	for i := range projects {
 		if projects[i].Name == projectName {
@@ -432,7 +356,7 @@ func (a *Projects) DeleteProject(projectName string) Response {
 	}
 
 	if project == nil {
-		return Response{404, fmt.Sprintf("Project `%s` not found", projectName)}
+		return Utils.NewResponse(true, fmt.Sprintf("Project `%s` not found", projectName))
 	}
 
 	// Remove the project from the slice
@@ -445,15 +369,15 @@ func (a *Projects) DeleteProject(projectName string) Response {
 
 	if server, exists := servers[projectName]; exists {
 		if err := server.Delete(); err != nil {
-			return Response{500, fmt.Sprintf("Error deleting project database: %s", err.Error())}
+			return Utils.NewResponse(true, fmt.Sprintf("Error deleting project database: %s", err.Error()))
 		}
 		delete(servers, projectName)
 	}
 
-	if err := writeSaveFile_projects(); err != nil {
-		return Response{500, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error())}
+	if err := Utils.Files.WriteStructToFile(projects, "projects.json"); err != nil {
+		return Utils.NewResponse(true, fmt.Sprintf("Error writing projects to projects.json: %s", err.Error()))
 	}
 
 	fmt.Printf("Deleted Project `%s`\n", projectName)
-	return Response{200, fmt.Sprintf("Deleted project `%s` successfully", projectName)}
+	return Utils.NewResponse(false, fmt.Sprintf("Deleted project `%s` successfully", projectName))
 }

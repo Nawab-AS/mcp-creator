@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"mcp-creator/utils"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,44 +16,22 @@ import (
 	ort "github.com/yalue/onnxruntime_go"
 )
 
-var common CommonFuncs
-
 const onnxRuntimeVersion = "1.30.0"
 
-type CommonFuncs interface {
-	GetConfigPath() (string, error)
-	FsExists(path string, isDir bool) (bool, error)
-	DownloadFile(sourceURL string, targetPath string, onProgress func(float32)) error
-	EmitEvent(eventName string, data ...interface{})
-	ModelStorageDirectory(modelName string) (string, error)
-	ProjectDBPath(projectName string) (string, string, error)
-	Hash(input string) string
-	ShowInfoDialog(message string)
-	Uninstall()
-}
-
-func OnnxStartup(commonFuncs CommonFuncs) error {
-	common = commonFuncs
+func OnnxStartup(utils *utils.Utils) error {
 	// load/save onnxruntime shared library
-	configDir, err := common.GetConfigPath()
-	if err != nil {
-		fmt.Println("Error getting config path:", err)
-		return err
-	}
-
 	onnxBinaryName, err := getOnnxBinaryName()
 	if err != nil {
-		common.ShowInfoDialog(err.Error())
-		common.Uninstall()
 		return err
 	}
 
-	onnxBinaryPath := filepath.Join(configDir, onnxBinaryName)
+	Utils = utils
+	onnxBinaryPath := Utils.Files.GetFileStoragePath(onnxBinaryName)
 
-	if fsExists, err := common.FsExists(onnxBinaryPath, false); err != nil {
+	if exists, err := Utils.Files.Exists(onnxBinaryPath); err != nil {
 		fmt.Println("Error checking if onnxruntime binary exists:", err)
 		return err
-	} else if !fsExists {
+	} else if !exists {
 		fmt.Println("onnxruntime binary does not exist, downloading...")
 		if err := downloadOnnxRuntime(onnxBinaryPath); err != nil {
 			return err
@@ -64,8 +43,6 @@ func OnnxStartup(commonFuncs CommonFuncs) error {
 	if err := ort.InitializeEnvironment(); err != nil {
 		initErr := fmt.Errorf("error initializing the ONNX Runtime library: %w", err)
 		fmt.Println(initErr)
-		common.ShowInfoDialog(initErr.Error())
-		common.Uninstall()
 		return initErr
 	}
 	end := time.Now().UnixNano()
@@ -115,8 +92,8 @@ func getOnnxArchiveNameForPlatform(goos string, goarch string) (string, error) {
 	}
 }
 
-func downloadOnnxRuntime(targetPath string) error {
-	common.EmitEvent("started", "onnxruntime-download")
+func downloadOnnxRuntime(targetPath string) error { // TODO: fix emit events
+	//common.EmitEvent("started", "onnxruntime-download")
 	onnxBinaryName, err := getOnnxBinaryName()
 	if err != nil {
 		return err
@@ -131,20 +108,20 @@ func downloadOnnxRuntime(targetPath string) error {
 	archivePath := targetPath + ".archive"
 	defer os.Remove(archivePath)
 
-	err = common.DownloadFile(downloadURL, archivePath, func(progress float32) {
-		common.EmitEvent("progress", "onnxruntime-download", progress)
+	err = Utils.Files.DownloadFile(downloadURL, archivePath, func(progress float32) {
+		//common.EmitEvent("progress", "onnxruntime-download", progress)
 	})
 
 	if err != nil {
-		common.EmitEvent("error", "onnxruntime-download", "Network error")
+		//common.EmitEvent("error", "onnxruntime-download", "Network error")
 		return err
 	}
 	if err := extractRuntime(archivePath, targetPath, onnxBinaryName); err != nil {
-		common.EmitEvent("error", "onnxruntime-download", "Invalid runtime archive")
+		//common.EmitEvent("error", "onnxruntime-download", "Invalid runtime archive")
 		return err
 	}
 
-	common.EmitEvent("completed", "onnxruntime-download")
+	//common.EmitEvent("completed", "onnxruntime-download")
 
 	return nil
 }

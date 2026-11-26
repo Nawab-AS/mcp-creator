@@ -2,37 +2,57 @@ package main
 
 import (
 	"embed"
+	"fmt"
+	"mcp-creator/backend"
+	"os"
+	"path/filepath"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
-	app := NewApp()
+	if err := createStorageDir(); err != nil {
+		panic(fmt.Errorf("failed to create storage directory: %w", err))
+	}
 
-	// Create application with options
-	err := wails.Run(&options.App{
-		Title:         "mcp-creator",
-		Width:         800,
-		Height:        500,
-		DisableResize: true,
-		AssetServer: &assetserver.Options{
-			Assets: assets,
+	// Create an instance of the app structure
+	app := application.New(application.Options{
+		Name: "mcp-creator",
+		Services: []application.Service{
+			application.NewService(&backend.Backend{}),
 		},
-		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 30, A: 1},
-		OnStartup:        app.startup,
-		OnBeforeClose:    app.beforeClose,
-		Bind: []interface{}{
-			app,
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(assets),
 		},
 	})
 
+	app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:         "MCP-Creator",
+		Width:         800,
+		Height:        500,
+		DisableResize: true,
+	})
+
+	err := app.Run()
 	if err != nil {
-		println("Error:", err.Error())
+		panic(err)
 	}
+}
+
+func createStorageDir() error {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return fmt.Errorf("could not get user config dir: %w", err)
+	}
+
+	appConfigDir := filepath.Join(configDir, "mcp-creator")
+	err = os.MkdirAll(appConfigDir, 0755) // if not already existing
+	if err != nil {
+		return fmt.Errorf("could not create config folder: %w", err)
+	}
+
+	return nil
 }
